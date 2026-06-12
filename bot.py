@@ -1,13 +1,15 @@
+import os
 import asyncio
 import nest_asyncio
-nest_asyncio.apply()
 from pyrogram import Client, filters
 from pyrogram.types import ReplyKeyboardMarkup
 
-# ВСТАВЬТЕ ВАШИ ДАННЫЕ ВМЕСТО ЗНАЧЕНИЙ НИЖЕ:
-api_id = 35051665  # Ваш api_id с my.telegram.org (число)
-api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # Ваш api_hash с my.telegram.org (в кавычках)
-bot_token = os.environ.get("TELEGRAM_TOKEN")  # Ваш токен от @BotFather
+nest_asyncio.apply()
+
+# Ваши данные
+api_id = 35051665  # Ваш api_id
+api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # Ваш api_hash
+bot_token = os.environ.get("TELEGRAM_TOKEN")
 
 app = Client("my_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
