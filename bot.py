@@ -1,12 +1,12 @@
 import os
 import asyncio
-import nest_asyncio
 from pyrogram import Client, filters
 from pyrogram.types import ReplyKeyboardMarkup
 
-nest_asyncio.apply()
+# Установка event loop для совместимости
+if asyncio.get_event_loop().is_closed():
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
-# Ваши данные
 api_id = 35051665  # Ваш api_id
 api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # Ваш api_hash
 bot_token = os.environ.get("TELEGRAM_TOKEN")
@@ -31,5 +31,11 @@ async def buttons(client, message):
     elif message.text == "🔘 Как играем?":
         await message.reply("Мы ахуенно играем, невероятно сильно")
 
-print("✅ Бот запущен!")
-app.run()
+# Запуск с правильным event loop
+async def main():
+    await app.start()
+    print("✅ Бот запущен!")
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
