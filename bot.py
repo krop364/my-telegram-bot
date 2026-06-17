@@ -54,7 +54,8 @@ async def run_bot():
 if __name__ == "__main__":
     # Запускаем Flask в отдельном потоке
     flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True  # Поток завершится при выходе
     flask_thread.start()
     
-    # Запускаем бота
+    # Запускаем бота в основном потоке
     asyncio.run(run_bot())
