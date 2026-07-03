@@ -1,28 +1,10 @@
 import os
 import asyncio
-from multiprocessing import Process
-from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import ReplyKeyboardMarkup
 
-# ===== 1. ВЕБ-СЕРВЕР ДЛЯ RENDER (ЗАПУСКАЕТСЯ В ОТДЕЛЬНОМ ПРОЦЕССЕ) =====
-flask_app = Flask(__name__)
-
-@flask_app.route('/')
-def home():
-    return "Бот работает!", 200
-
-@flask_app.route('/health')
-def health():
-    return "OK", 200
-
-def run_flask():
-    """Запускает Flask-сервер на порту 10000"""
-    flask_app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
-
-# ===== 2. ТЕЛЕГРАМ-БОТ =====
-api_id = 35051665  # ВАШ api_id
-api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # ВАШ api_hash
+api_id = 35051665  # Ваш api_id
+api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # Ваш api_hash
 bot_token = os.environ.get("TELEGRAM_TOKEN")
 
 app = Client("my_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
@@ -33,7 +15,6 @@ async def start(client, message):
         ["🔘 Кто Гусь?", "🔘 Кто Олька?"],
         ["🔘 Как играем?"]
     ], resize_keyboard=True)
-    
     await message.reply("Выберите:", reply_markup=keyboard)
 
 @app.on_message(filters.text)
@@ -45,17 +26,10 @@ async def buttons(client, message):
     elif message.text == "🔘 Как играем?":
         await message.reply("Мы ахуенно играем, невероятно сильно")
 
-# ===== 3. ЗАПУСК =====
 async def run_bot():
     await app.start()
     print("✅ Бот запущен!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    # Запускаем Flask в отдельном процессе
-    flask_process = Process(target=run_flask)
-    flask_process.start()
-    print("🔄 Веб-сервер запущен в фоновом процессе.")
-    
-    # Запускаем бота в основном процессе
     asyncio.run(run_bot())
