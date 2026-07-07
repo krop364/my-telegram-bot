@@ -29,24 +29,60 @@ app = Client("my_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
-    user_id = message.from_user.id # (здесь можно добавить проверку на нового пользователя)
-    
     keyboard = ReplyKeyboardMarkup([
         ["🔘 Давай расскажу про разные направления!", "🔘 Давай помогу выбрать отель!"]
     ], resize_keyboard=True)
     
     await message.reply(
         "👋 **Добро пожаловать!**\n"
-        "Ты запустил бота впервые? Нажми любую кнопку:",
+        "Ты запустил бота впервые? Нажми на левую кнопку, если сомневаешься куда ехать и на правую, если уже готов выбирать отель!",
         reply_markup=keyboard
     )
 
-@app.on_message(filters.text)
-async def buttons(client, message):
-    if message.text == "🔘 Давай расскажу про разные направления!":
-        await message.reply("азия хуязия")
-    elif message.text == "🔘 Давай помогу выбрать отель!":
-        await message.reply("ну да бля нобу по тебе плачет")
+# Обработчик первой кнопки - показывает новые кнопки
+@app.on_message(filters.text & filters.regex("🔘 Давай расскажу про разные направления!"))
+async def show_destinations(client, message):
+    keyboard = ReplyKeyboardMarkup([
+        ["🌏 Азия хуязия", "🌍 Европа гейропа"]
+    ], resize_keyboard=True)
+    
+    await message.reply(
+        "🌍 **Куда хочешь поехать?**\nВыбери направление:",
+        reply_markup=keyboard
+    )
+
+# Обработчик для Азии
+@app.on_message(filters.text & filters.regex("🌏 Азия хуязия"))
+async def asia_response(client, message):
+    await message.reply(
+        "😬 **Хуевый выбор**\n"
+        "Ну, ты сам напросился...",
+        reply_markup=ReplyKeyboardRemove()  # Убираем кнопки, чтобы не мешали
+    )
+
+# Обработчик для Европы
+@app.on_message(filters.text & filters.regex("🌍 Европа гейропа"))
+async def europe_response(client, message):
+    await message.reply(
+        "😏 **Может тебе еще пососать?**\n"
+        "Европа - это классика!",
+        reply_markup=ReplyKeyboardRemove()  # Убираем кнопки
+    )
+
+# Обработчик второй начальной кнопки (отель)
+@app.on_message(filters.text & filters.regex("🔘 Давай помогу выбрать отель!"))
+async def hotel_response(client, message):
+    await message.reply(
+        "🏨 **Отель - это серьезно!**\n"
+        "Но я пока только учусь... Напиши /start, чтобы начать заново."
+    )
+
+# Обработчик для всего остального текста (чтобы не падал)
+@app.on_message(filters.text & ~filters.regex("🔘 Давай расскажу про разные направления!") & ~filters.regex("🔘 Давай помогу выбрать отель!") & ~filters.regex("🌏 Азия хуязия") & ~filters.regex("🌍 Европа гейропа"))
+async def fallback(client, message):
+    await message.reply(
+        "❓ Я тебя не понял. Нажми /start, чтобы начать сначала."
+    )
 
 # ===== 3. ЗАПУСК (УПРОЩЕННЫЙ) =====
 if __name__ == "__main__":
