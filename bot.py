@@ -40,7 +40,7 @@ async def start(client, message):
     )
 
 # Обработчик первой кнопки - показывает новые кнопки
-@app.on_message(filters.text & filters.regex("🔘 Давай расскажу про разные направления!"))
+@app.on_message(filters.regex("🔘 Давай расскажу про разные направления!"))
 async def show_destinations(client, message):
     keyboard = ReplyKeyboardMarkup([
         ["🌏 Азия хуязия", "🌍 Европа гейропа"]
@@ -52,35 +52,34 @@ async def show_destinations(client, message):
     )
 
 # Обработчик для Азии
-@app.on_message(filters.text & filters.regex("🌏 Азия хуязия"))
+@app.on_message(filters.regex("🌏 Азия хуязия"))
 async def asia_response(client, message):
     await message.reply(
         "😬 **Хуевый выбор**\n",
-        reply_markup=ReplyKeyboardRemove()  # Убираем кнопки, чтобы не мешали
+        reply_markup=ReplyKeyboardRemove()
     )
 
 # Обработчик для Европы
-@app.on_message(filters.text & filters.regex("🌍 Европа гейропа"))
+@app.on_message(filters.regex("🌍 Европа гейропа"))
 async def europe_response(client, message):
     await message.reply(
         "😏 **Может тебе еще пососать?",
-        reply_markup=ReplyKeyboardRemove()  # Убираем кнопки
+        reply_markup=ReplyKeyboardRemove()
     )
 
 # Обработчик второй начальной кнопки (отель)
-@app.on_message(filters.text & filters.regex("🔘 Давай помогу выбрать отель!"))
+@app.on_message(filters.regex("🔘 Давай помогу выбрать отель!"))
 async def hotel_response(client, message):
     await message.reply(
         "**ну да ну да бля нобу по тебе плачет."
     )
 
-# Обработчик для всего остального текста (чтобы не падал)
-@app.on_message(filters.text & ~filters.regex("🔘 Давай расскажу про разные направления!") & ~filters.regex("🔘 Давай помогу выбрать отель!") & ~filters.regex("🌏 Азия хуязия") & ~filters.regex("🌍 Европа гейропа"))
+# Обработчик для всего остального текста
+@app.on_message(filters.text)
 async def fallback(client, message):
     await message.reply(
         "❓ Я тебя не понял. Нажми /start, чтобы начать сначала."
     )
-
 # ===== 3. ЗАПУСК (УПРОЩЕННЫЙ) =====
 if __name__ == "__main__":
     # Запускаем Flask в фоновом потоке
