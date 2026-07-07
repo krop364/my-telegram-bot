@@ -29,11 +29,18 @@ app = Client("my_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
+    user_id = message.from_user.id # (здесь можно добавить проверку на нового пользователя)
+    
     keyboard = ReplyKeyboardMarkup([
         ["🔘 Кто Гусь?", "🔘 Кто Олька?"],
         ["🔘 Как играем?"]
     ], resize_keyboard=True)
-    await message.reply("Выберите:", reply_markup=keyboard)
+    
+    await message.reply(
+        "👋 **Добро пожаловать!**\n"
+        "Ты запустил бота впервые? Нажми любую кнопку:",
+        reply_markup=keyboard
+    )
 
 @app.on_message(filters.text)
 async def buttons(client, message):
