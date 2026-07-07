@@ -55,8 +55,7 @@ async def show_destinations(client, message):
 @app.on_message(filters.text & filters.regex("🌏 Азия хуязия"))
 async def asia_response(client, message):
     await message.reply(
-        "😬 **Хуевый выбор**\n"
-        "Ну, ты сам напросился...",
+        "😬 **Хуевый выбор**\n",
         reply_markup=ReplyKeyboardRemove()  # Убираем кнопки, чтобы не мешали
     )
 
@@ -64,8 +63,7 @@ async def asia_response(client, message):
 @app.on_message(filters.text & filters.regex("🌍 Европа гейропа"))
 async def europe_response(client, message):
     await message.reply(
-        "😏 **Может тебе еще пососать?**\n"
-        "Европа - это классика!",
+        "😏 **Может тебе еще пососать?",
         reply_markup=ReplyKeyboardRemove()  # Убираем кнопки
     )
 
@@ -73,7 +71,7 @@ async def europe_response(client, message):
 @app.on_message(filters.text & filters.regex("🔘 Давай помогу выбрать отель!"))
 async def hotel_response(client, message):
     await message.reply(
-        "🏨 **Отель - это серьезно!**\n"
+        "🏨 **ну да бля нобу по тебе плачет**\n"
         "Но я пока только учусь... Напиши /start, чтобы начать заново."
     )
 
