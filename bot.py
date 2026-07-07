@@ -32,8 +32,7 @@ async def start(client, message):
     user_id = message.from_user.id # (здесь можно добавить проверку на нового пользователя)
     
     keyboard = ReplyKeyboardMarkup([
-        ["🔘 Кто Гусь?", "🔘 Кто Олька?"],
-        ["🔘 Как играем?"]
+        ["🔘 Давай расскажу про разные направления!", "🔘 Давай помогу выбрать отель!"]
     ], resize_keyboard=True)
     
     await message.reply(
@@ -44,12 +43,10 @@ async def start(client, message):
 
 @app.on_message(filters.text)
 async def buttons(client, message):
-    if message.text == "🔘 Кто Гусь?":
-        await message.reply("лох вонючий")
-    elif message.text == "🔘 Кто Олька?":
-        await message.reply("Цариииииица")
-    elif message.text == "🔘 Как играем?":
-        await message.reply("Мы ахуенно играем, невероятно сильно")
+    if message.text == "🔘 Давай расскажу про разные направления!":
+        await message.reply("азия хуязия")
+    elif message.text == "🔘 Давай помогу выбрать отель!":
+        await message.reply("ну да бля нобу по тебе плачет")
 
 # ===== 3. ЗАПУСК (УПРОЩЕННЫЙ) =====
 if __name__ == "__main__":
