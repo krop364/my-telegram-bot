@@ -4,7 +4,7 @@ import asyncio
 import threading
 from flask import Flask
 from pyrogram import Client, filters
-from pyrogram.types import ReplyKeyboardMarkup
+from pyrogram.types import ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 # ===== 1. ВЕБ-СЕРВЕР =====
 flask_app = Flask(__name__)
@@ -71,8 +71,7 @@ async def europe_response(client, message):
 @app.on_message(filters.text & filters.regex("🔘 Давай помогу выбрать отель!"))
 async def hotel_response(client, message):
     await message.reply(
-        "🏨 **ну да бля нобу по тебе плачет**\n"
-        "Но я пока только учусь... Напиши /start, чтобы начать заново."
+        "**ну да ну да бля нобу по тебе плачет."
     )
 
 # Обработчик для всего остального текста (чтобы не падал)
