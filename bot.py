@@ -13,13 +13,13 @@ flask_app = Flask(__name__)
 def home():
     return "Бот работает!", 200
 
+@flask_app.route('/')
 @flask_app.route('/health')
-def health():
+def health_check():
     return "OK", 200
 
 def run_flask():
-    flask_app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
-
+    flask_app.run(host='0.0.0.0', port=8080)
 # ===== 2. БОТ =====
 api_id = 35051665  # Ваш api_id
 api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # Ваш api_hash
@@ -90,4 +90,5 @@ if __name__ == "__main__":
 
     # Запускаем бота
     print("🚀 Запускаю бота...")
+    threading.Thread(target=run_flask, daemon=True).start()
     app.run()  # <-- Используем app.run() вместо асинхронного запуска
