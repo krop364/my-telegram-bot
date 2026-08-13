@@ -21,8 +21,8 @@ def health_check():
 def run_flask():
     flask_app.run(host='0.0.0.0', port=8080)
 # ===== 2. БОТ =====
-api_id = 35051665  # Ваш api_id
-api_hash = "32f3b364d6587b554b108a0e8fb9c6db"  # Ваш api_hash
+api_id = os.environ.get("API_ID")  # Ваш api_id
+api_hash = os.environ.get("API_HASH")  # Ваш api_hash
 bot_token = os.environ.get("TELEGRAM_TOKEN")
 
 app = Client("my_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
