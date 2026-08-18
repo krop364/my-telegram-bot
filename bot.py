@@ -128,13 +128,31 @@ async def start(client, message):
 
 async def ask_gpt(user_message):
 
-    response = openai_client.responses.create(
-        model="gpt-4.1-mini",
-        instructions=SYSTEM_PROMPT,
-        input=user_message
-    )
+    print("🤖 Получен запрос к OpenAI")
+    print("Текст пользователя:", user_message)
 
-    return response.output_text
+    try:
+        print("🤖 Отправляю запрос в OpenAI...")
+
+        response = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            instructions=SYSTEM_PROMPT,
+            input=user_message
+        )
+
+        print("✅ OpenAI ответил!")
+        print("Ответ:", response.output_text)
+
+        return response.output_text
+
+    except Exception as e:
+
+        print("❌❌❌ ОШИБКА В OPENAI ❌❌❌")
+        print("Тип:", type(e).__name__)
+        print("Ошибка:", str(e))
+        print("repr:", repr(e))
+
+        raise
 
 
 # ==========================================
@@ -178,10 +196,12 @@ async def choose_hotel(client, message):
 @app.on_message(filters.text)
 async def chat_with_gpt(client, message):
 
+    print("📩 ПОЛУЧЕНО СООБЩЕНИЕ")
+    print("Текст:", message.text)
+
     if message.text.startswith("/start"):
         return
 
-    # Не отправляем сами названия кнопок повторно в GPT
     if message.text in [
         "🌍 Помоги выбрать направление",
         "🏨 Помоги выбрать отель"
@@ -194,14 +214,16 @@ async def chat_with_gpt(client, message):
 
         answer = await ask_gpt(message.text)
 
+        print("📤 Отправляю ответ пользователю")
+
         await message.reply(answer)
 
     except Exception as e:
 
-        print("❌❌❌ ОШИБКА OPENAI ❌❌❌")
-        print(type(e).__name__)
-        print(str(e))
-        print(repr(e))
+        print("💥 ОШИБКА В ОБРАБОТЧИКЕ")
+        print("Тип:", type(e).__name__)
+        print("Ошибка:", str(e))
+        print("repr:", repr(e))
 
         await message.reply(
             "😔 Произошла ошибка при обращении к AI.\n"
