@@ -198,8 +198,10 @@ async def chat_with_gpt(client, message):
 
     except Exception as e:
 
-        print("❌ Ошибка OpenAI:")
-        print(repr(e))
+    print("❌❌❌ ОШИБКА OPENAI ❌❌❌")
+    print(type(e).__name__)
+    print(str(e))
+    print(repr(e))
 
         await message.reply(
             "😔 Произошла ошибка при обращении к AI.\n"
