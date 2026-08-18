@@ -187,41 +187,16 @@ async def start(client, message):
 @app.on_message(filters.text & ~filters.command("start"))
 async def chat_with_gpt(client, message):
 
-    print(
-        "📩 ПОЛУЧЕНО СООБЩЕНИЕ:",
-        message.text,
-        flush=True
+    print("================================", flush=True)
+    print("📩 TELEGRAM MESSAGE RECEIVED", flush=True)
+    print("👤 User ID:", message.from_user.id, flush=True)
+    print("💬 Text:", message.text, flush=True)
+    print("================================", flush=True)
+
+    await message.reply(
+        "✅ Telegram получил сообщение!\n\n"
+        "Сейчас проверяем подключение к AI."
     )
-
-    try:
-
-        await message.reply_chat_action("typing")
-
-        answer = await asyncio.to_thread(
-            ask_gpt,
-            message.text
-        )
-
-        await message.reply(answer)
-
-        print(
-            "📤 Ответ отправлен пользователю",
-            flush=True
-        )
-
-    except Exception as e:
-
-        print(
-            "💥 ОШИБКА ОБРАБОТЧИКА:",
-            type(e).__name__,
-            str(e),
-            flush=True
-        )
-
-        await message.reply(
-            "😔 Произошла ошибка при обращении к AI.\n"
-            "Попробуй ещё раз."
-        )
 
 
 # =========================================================
