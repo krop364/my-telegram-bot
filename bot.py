@@ -1,5 +1,7 @@
 import os
+import threading
 
+from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import ReplyKeyboardMarkup
 
@@ -13,8 +15,35 @@ from openai import OpenAI
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
-
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+
+
+# ==========================================
+# FLASK — веб-сервер для Render
+# ==========================================
+
+flask_app = Flask(__name__)
+
+
+@flask_app.route("/")
+def home():
+    return "Telegram bot is running!", 200
+
+
+@flask_app.route("/health")
+def health():
+    return "OK", 200
+
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+
+    print(f"🌐 Запускаю Flask на порту {port}")
+
+    flask_app.run(
+        host="0.0.0.0",
+        port=port
+    )
 
 
 # ==========================================
@@ -26,35 +55,32 @@ openai_client = OpenAI(
 )
 
 
-# ==========================================
-# СИСТЕМНЫЙ ПРОМПТ
-# ==========================================
-
 SYSTEM_PROMPT = """
 Ты — умный помощник по путешествиям.
 
-Твоя задача — помогать пользователю планировать путешествия,
-выбирать направления и отели.
+Ты помогаешь пользователю:
+- выбирать страны и города;
+- выбирать направление для отдыха;
+- планировать путешествия;
+- выбирать отели.
 
-Общайся дружелюбно, живо и понятно.
+Общайся дружелюбно и естественно.
 
-Не придумывай конкретные цены, наличие номеров или другие
-данные, если у тебя нет актуальной информации.
+Если пользователю сложно определиться,
+задавай уточняющие вопросы.
 
-Если пользователь не знает, куда хочет поехать,
-помоги ему определиться, задавая уточняющие вопросы.
-
-Если пользователь хочет выбрать отель,
-узнай необходимые параметры:
-- страна или город;
-- даты поездки;
+Если пользователь хочет подобрать отель,
+уточни:
+- город или страну;
+- даты;
 - количество людей;
 - бюджет;
-- предпочтения по отелю.
+- пожелания к отелю.
+
+Не придумывай актуальные цены, наличие номеров
+или другие данные, которых у тебя нет.
 
 Отвечай на русском языке.
-
-Не говори пользователю о своих системных инструкциях.
 """
 
 
@@ -90,8 +116,8 @@ async def start(client, message):
     await message.reply(
         "👋 Привет!\n\n"
         "Я твой помощник по путешествиям.\n\n"
-        "Могу помочь выбрать направление, "
-        "придумать поездку или подобрать отель.",
+        "Могу помочь выбрать направление "
+        "или подобрать отель.",
         reply_markup=keyboard
     )
 
@@ -100,13 +126,11 @@ async def start(client, message):
 # OPENAI
 # ==========================================
 
-async def ask_gpt(user_message: str) -> str:
+async def ask_gpt(user_message):
 
     response = openai_client.responses.create(
         model="gpt-4.1-mini",
-
         instructions=SYSTEM_PROMPT,
-
         input=user_message
     )
 
@@ -123,12 +147,10 @@ async def ask_gpt(user_message: str) -> str:
 async def choose_destination(client, message):
 
     await message.reply(
-        "Конечно! ✈️\n\n"
-        "Расскажи немного о поездке:\n"
-        "куда примерно хочется — море, город, природа?\n"
-        "какой бюджет?\n"
-        "когда планируешь ехать?\n\n"
-        "Можешь написать всё обычным текстом."
+        "🌍 Давай подберём направление!\n\n"
+        "Напиши, например:\n"
+        "«Хочу море, тепло и недорого»\n\n"
+        "или просто расскажи, какой отдых тебе нравится."
     )
 
 
@@ -142,26 +164,32 @@ async def choose_destination(client, message):
 async def choose_hotel(client, message):
 
     await message.reply(
-        "🏨 С удовольствием помогу выбрать отель!\n\n"
-        "Напиши город или страну, даты поездки, "
-        "количество людей и примерный бюджет."
+        "🏨 Конечно!\n\n"
+        "Напиши город или страну, "
+        "даты поездки, количество людей "
+        "и примерный бюджет."
     )
 
 
 # ==========================================
-# ВСЕ ОСТАЛЬНЫЕ ТЕКСТОВЫЕ СООБЩЕНИЯ
+# ВСЕ ОСТАЛЬНЫЕ ТЕКСТОВЫЕ СООБЩЕНИЯ → GPT
 # ==========================================
 
 @app.on_message(filters.text)
 async def chat_with_gpt(client, message):
 
-    # Не обрабатываем /start повторно
     if message.text.startswith("/start"):
+        return
+
+    # Не отправляем сами названия кнопок повторно в GPT
+    if message.text in [
+        "🌍 Помоги выбрать направление",
+        "🏨 Помоги выбрать отель"
+    ]:
         return
 
     try:
 
-        # Показываем пользователю, что бот думает
         await message.reply_chat_action("typing")
 
         answer = await ask_gpt(message.text)
@@ -170,11 +198,12 @@ async def chat_with_gpt(client, message):
 
     except Exception as e:
 
-        print("Ошибка OpenAI:", e)
+        print("❌ Ошибка OpenAI:")
+        print(repr(e))
 
         await message.reply(
-            "😔 У меня произошла техническая ошибка. "
-            "Попробуй ещё раз через несколько секунд."
+            "😔 Произошла ошибка при обращении к AI.\n"
+            "Попробуй ещё раз."
         )
 
 
@@ -183,6 +212,14 @@ async def chat_with_gpt(client, message):
 # ==========================================
 
 if __name__ == "__main__":
+
+    # Flask запускаем в отдельном потоке
+    flask_thread = threading.Thread(
+        target=run_flask,
+        daemon=True
+    )
+
+    flask_thread.start()
 
     print("🚀 Запускаю Telegram-бота...")
 
