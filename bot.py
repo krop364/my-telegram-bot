@@ -128,11 +128,27 @@ async def start(client, message):
 
 async def ask_gpt(user_message):
 
-    print("🤖 Получен запрос к OpenAI")
-    print("Текст пользователя:", user_message)
+    print("========== OPENAI TEST ==========", flush=True)
+
+    # Проверяем, что ключ вообще передан в Render
+    print(
+        "OPENAI_API_KEY найден:",
+        bool(os.environ.get("OPENAI_API_KEY")),
+        flush=True
+    )
+
+    print(
+        "Длина ключа:",
+        len(os.environ.get("OPENAI_API_KEY", "")),
+        flush=True
+    )
+
+    print(
+        "Отправляю запрос в OpenAI...",
+        flush=True
+    )
 
     try:
-        print("🤖 Отправляю запрос в OpenAI...")
 
         response = openai_client.responses.create(
             model="gpt-4.1-mini",
@@ -140,20 +156,50 @@ async def ask_gpt(user_message):
             input=user_message
         )
 
-        print("✅ OpenAI ответил!")
-        print("Ответ:", response.output_text)
+        print(
+            "OPENAI УСПЕШНО ОТВЕТИЛ!",
+            flush=True
+        )
+
+        print(
+            "Ответ:",
+            response.output_text,
+            flush=True
+        )
 
         return response.output_text
 
     except Exception as e:
 
-        print("❌❌❌ ОШИБКА В OPENAI ❌❌❌")
-        print("Тип:", type(e).__name__)
-        print("Ошибка:", str(e))
-        print("repr:", repr(e))
+        print(
+            "========== OPENAI ERROR ==========",
+            flush=True
+        )
+
+        print(
+            "Тип ошибки:",
+            type(e).__name__,
+            flush=True
+        )
+
+        print(
+            "Текст ошибки:",
+            str(e),
+            flush=True
+        )
+
+        print(
+            "Полная ошибка:",
+            repr(e),
+            flush=True
+        )
+
+        print(
+            "==================================",
+            flush=True
+        )
 
         raise
-
 
 # ==========================================
 # КНОПКА "НАПРАВЛЕНИЕ"
