@@ -125,14 +125,15 @@ app = Client(
 
 def ask_gpt(user_message):
 
-    print("🤖 Отправляю запрос в OpenAI...", flush=True)
-    print(f"👤 Пользователь написал: {user_message}", flush=True)
+    print("🤖 НАЧАЛО OPENAI ЗАПРОСА", flush=True)
+    print("Текст:", user_message, flush=True)
 
     try:
 
+        print("📡 Вызываю openai_client.responses.create()", flush=True)
+
         response = openai_client.responses.create(
             model="gpt-4.1-mini",
-
             input=[
                 {
                     "role": "developer",
@@ -145,24 +146,23 @@ def ask_gpt(user_message):
             ]
         )
 
+        print("✅ OpenAI API ответил", flush=True)
+
         answer = response.output_text
 
-        print("========================================")
-        print("✅ OPENAI ОТВЕТИЛ")
-        print("========================================")
-        print(answer)
-        print("========================================")
+        print("📝 Полученный текст:", answer, flush=True)
 
         return answer
 
     except Exception as e:
 
-        print("========================================")
-        print("❌❌❌ ОШИБКА OPENAI ❌❌❌")
-        print("========================================")
-        print("Тип ошибки:", type(e).__name__)
-        print("Ошибка:", str(e))
-        print("========================================")
+        print("====================================", flush=True)
+        print("❌ ОШИБКА OPENAI", flush=True)
+        print("====================================", flush=True)
+        print("Класс ошибки:", type(e).__name__, flush=True)
+        print("Сообщение:", str(e), flush=True)
+        print("repr:", repr(e), flush=True)
+        print("====================================", flush=True)
 
         raise
 
@@ -195,43 +195,41 @@ async def start(client, message):
 # ВСЕ ТЕКСТОВЫЕ СООБЩЕНИЯ
 # ============================================================
 
-@app.on_message(filters.text & ~filters.command("start"))
+@app.on_message(filters.text)
 async def chat_with_gpt(client, message):
 
-    print("========================================")
-    print("📩 ПОЛУЧЕНО СООБЩЕНИЕ")
-    print("========================================")
-    print(message.text)
-    print("========================================")
+    print("====================================", flush=True)
+    print("📩 ПОЛУЧЕНО СООБЩЕНИЕ:", message.text, flush=True)
+    print("====================================", flush=True)
 
     try:
 
-        # Показываем пользователю, что бот печатает
         await message.reply_chat_action("typing")
 
-        # OpenAI SDK синхронный,
-        # поэтому запускаем его отдельно от Telegram event loop.
+        print("➡️ Передаю сообщение в ask_gpt()", flush=True)
+
         answer = await asyncio.to_thread(
             ask_gpt,
             message.text
         )
 
-        # Отправляем ответ пользователю
+        print("⬅️ ask_gpt() вернул ответ", flush=True)
+
         await message.reply(answer)
 
-        print("📤 Ответ отправлен пользователю", flush=True)
+        print("📤 Ответ отправлен", flush=True)
 
     except Exception as e:
 
-        print("========================================")
-        print("💥 ОШИБКА ОБРАБОТЧИКА")
-        print("========================================")
-        print("Тип:", type(e).__name__)
-        print("Ошибка:", str(e))
-        print("========================================")
+        print("====================================", flush=True)
+        print("💥 ОШИБКА ОБРАБОТЧИКА", flush=True)
+        print("====================================", flush=True)
+        print("Класс:", type(e).__name__, flush=True)
+        print("Ошибка:", str(e), flush=True)
+        print("====================================", flush=True)
 
         await message.reply(
-            "😔 Произошла ошибка при обращении к AI.\n\n"
+            "😔 Произошла ошибка при обращении к AI.\n"
             "Попробуй ещё раз."
         )
 
