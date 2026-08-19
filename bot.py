@@ -204,8 +204,6 @@ async def chat_with_gpt(client, message):
 
     try:
 
-        await message.reply_chat_action("typing")
-
         print("➡️ Передаю сообщение в ask_gpt()", flush=True)
 
         answer = await asyncio.to_thread(
