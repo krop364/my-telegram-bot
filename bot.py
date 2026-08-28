@@ -17,6 +17,7 @@ API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+MANAGER_CONTACT = os.environ.get("MANAGER_CONTACT")
 
 
 # ============================================================
