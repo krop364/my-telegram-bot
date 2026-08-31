@@ -18,6 +18,22 @@ API_HASH = os.environ.get("API_HASH")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 MANAGER_CONTACT = os.environ.get("MANAGER_CONTACT")
+ALLOWED_DOMAINS = [
+    "anextour.ru",
+    "biblioglobus.ru",
+    "coral.ru",
+    "fstravel.com",
+    "letsfly.travel",
+    "loti.ru",
+    "paks.ru",
+    "pegast.ru",
+    "r-express.ru",
+    "space-travel.ru",
+    "sunmar.ru",
+    "travelata.ru",
+    "art-tour.ru",
+    "intourist.ru",
+]
 
 
 # ============================================================
@@ -661,31 +677,36 @@ def ask_gpt(user_id, user_message):
     try:
 
         response = openai_client.responses.create(
-
+        
             # ------------------------------------------------
             # Модель
             # ------------------------------------------------
-
+        
             model="gpt-4.1-mini",
-
+        
             # ------------------------------------------------
-            # Системная инструкция
+            # Системная инструкция + история
             # ------------------------------------------------
-
+        
             input=[
                 {
                     "role": "developer",
                     "content": SYSTEM_PROMPT
                 }
             ] + messages,
-
+        
             # ------------------------------------------------
-            # TOOLS
+            # WEB SEARCH
+            # Поиск разрешён только на этих доменах
             # ------------------------------------------------
-
+        
             tools=[
                 {
-                    "type": "web_search"
+                    "type": "web_search",
+                    "filters": {
+                        "allowed_domains": ALLOWED_DOMAINS
+                    },
+                    "search_context_size": "medium"
                 }
             ]
         )
