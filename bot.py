@@ -18,22 +18,22 @@ API_HASH = os.environ.get("API_HASH")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 MANAGER_CONTACT = os.environ.get("MANAGER_CONTACT")
-ALLOWED_DOMAINS = [
-    "anextour.ru",
-    "biblioglobus.ru",
-    "coral.ru",
-    "fstravel.com",
-    "letsfly.travel",
-    "loti.ru",
-    "paks.ru",
-    "pegast.ru",
-    "r-express.ru",
-    "space-travel.ru",
-    "sunmar.ru",
-    "travelata.ru",
-    "art-tour.ru",
-    "intourist.ru",
-]
+#ALLOWED_DOMAINS = [
+#    "anextour.ru",
+#    "biblioglobus.ru",
+#    "coral.ru",
+#    "fstravel.com",
+#    "letsfly.travel",
+#    "loti.ru",
+#    "paks.ru",
+#    "pegast.ru",
+#    "r-express.ru",
+#    "space-travel.ru",
+#    "sunmar.ru",
+#    "travelata.ru",
+#    "art-tour.ru",
+#    "intourist.ru",
+#]
 
 
 # ============================================================
@@ -235,30 +235,30 @@ Web search доступен как инструмент.
 
 Если пользователь прямо просит актуальную информацию — используй web search.
 
-ИСТОЧНИКИ ЦЕН И ТУРОВ
+ИСТОЧНИКИ ЦЕН И НАЛИЧИЯ
 
-Для туров и пакетных предложений используй данные следующих операторов и сервисов:
+При поиске актуальных цен на туры и отели, наличия номеров, пакетных предложений, условий бронирования, доплат, акций и других коммерческих условий используй ТОЛЬКО следующие источники:
 
-- Anex
-- Biblio Globus
-- Coral
-- Fun&Sun
-- Let's Fly
-- Loti
-- Paks
-- Pegas Touristik
-- Russian Express
-- Space Travel
-- Sunmar
-- Travelata
-- Арт-Тур
-- Интурист
+Anex
+Biblio Globus
+Coral
+Fun&Sun
+Let's Fly
+Loti
+Paks
+Pegas Touristik
+Russian Express
+Space Travel
+Sunmar
+Travelata
+Арт-Тур
+Интурист
 
-Для информации непосредственно об отеле можно использовать официальный сайт отеля и другие надежные источники, если это необходимо.
+Не используй другие сайты как источник цены, наличия или условий бронирования.
 
-Не утверждай, что проверил конкретный сайт или туроператора, если поиск фактически не дал таких данных.
+Если на разрешенных источниках актуальную информацию найти не удалось, не ищи замену на других сайтах. Честно скажи, что точную информацию найти не удалось, и предложи пользователю самостоятельно связаться с менеджером.
 
-Не придумывай информацию от имени источников.
+Для правил въезда, виз, требований к документам и другой справочной актуальной информации это ограничение не применяется. Для таких вопросов используй web search и отдавай предпочтение официальным государственным, консульским и другим первичным источникам.
 
 ПОИСК АКТУАЛЬНОЙ ЦЕНЫ
 
@@ -678,15 +678,7 @@ def ask_gpt(user_id, user_message):
 
         response = openai_client.responses.create(
         
-            # ------------------------------------------------
-            # Модель
-            # ------------------------------------------------
-        
             model="gpt-4.1-mini",
-        
-            # ------------------------------------------------
-            # Системная инструкция + история
-            # ------------------------------------------------
         
             input=[
                 {
@@ -695,19 +687,15 @@ def ask_gpt(user_id, user_message):
                 }
             ] + messages,
         
-            # ------------------------------------------------
-            # WEB SEARCH
-            # Поиск разрешён только на этих доменах
-            # ------------------------------------------------
-        
             tools=[
                 {
                     "type": "web_search",
-                    "filters": {
-                        "allowed_domains": ALLOWED_DOMAINS
-                    },
                     "search_context_size": "medium"
                 }
+            ],
+        
+            include=[
+                "web_search_call.action.sources"
             ]
         )
 
@@ -729,6 +717,14 @@ def ask_gpt(user_id, user_message):
             answer,
             flush=True
         )
+        print("========================================")
+        print("🌐 WEB SEARCH DEBUG")
+        print("========================================")
+        
+        for item in response.output:
+            print(item, flush=True)
+        
+        print("========================================")
         
         # ----------------------------------------------------
         # Проверяем, нужно ли передать клиента менеджеру
