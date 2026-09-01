@@ -238,21 +238,8 @@ Web search доступен как инструмент.
 ИСТОЧНИКИ ЦЕН И НАЛИЧИЯ
 
 При поиске актуальных цен на туры и отели, наличия номеров, пакетных предложений, условий бронирования, доплат, акций и других коммерческих условий используй ТОЛЬКО следующие источники:
-
-Anex
-Biblio Globus
-Coral
-Fun&Sun
-Let's Fly
-Loti
-Paks
-Pegas Touristik
-Russian Express
-Space Travel
-Sunmar
-Travelata
-Арт-Тур
-Интурист
+atourr.ru, bgoperator.ru, coral.ru, fnstour.ru, letsfly.travel, loti.ru, paks.ru, pstourist.ru, r-express.ru, space-travel.ru, sunmar.ru, travelata.ru, arttour.ru, intour.ru, ambotis.ru, icstrvl.ru, itmgroup.ru, kazunion.ru, 
+oneclick.travel, onetouch.travel, pac.ru, resort-holiday.com, crystalbaytours.ru, online.xpress.travel, alean.ru, delfin-tour.ru, magput.ru, online-express.ru, ostrovok.ru, tour-platform.ru, hotelbook.ru
 
 Не используй другие сайты как источник цены, наличия или условий бронирования.
 
