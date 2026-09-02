@@ -238,8 +238,8 @@ Web search доступен как инструмент.
 ИСТОЧНИКИ ЦЕН И НАЛИЧИЯ
 
 При поиске актуальных цен на туры и отели, наличия номеров, пакетных предложений, условий бронирования, доплат, акций и других коммерческих условий используй ТОЛЬКО следующие источники:
-atourr.ru, bgoperator.ru, coral.ru, fnstour.ru, letsfly.travel, loti.ru, paks.ru, pstourist.ru, r-express.ru, space-travel.ru, sunmar.ru, travelata.ru, arttour.ru, intour.ru, ambotis.ru, icstrvl.ru, itmgroup.ru, kazunion.ru, 
-oneclick.travel, onetouch.travel, pac.ru, resort-holiday.com, crystalbaytours.ru, online.xpress.travel, alean.ru, delfin-tour.ru, magput.ru, online-express.ru, ostrovok.ru, tour-platform.ru, hotelbook.ru
+anextour.ru, bgoperator.ru, coral.ru, fstravel.com, letsfly.travel, loti.ru, paks.ru, pegast.ru, r-express.ru, space-travel.ru, sunmar.ru, travelata.ru, arttour.ru, intourist.ru, ambotis.ru, icstrvl.ru, itmgroup.ru, kazunion.ru, 
+oneclick.travel, onetouch.travel, pac.ru, resort-holiday.com, crystalbaytours.ru, online.xpress.travel, alean.ru, delfin-tour.ru, magput.ru, online-express.ru, ostrovok.ru, tour-platform.ru
 
 Не используй другие сайты как источник цены, наличия или условий бронирования.
 
