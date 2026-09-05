@@ -642,12 +642,12 @@ app = Client(
 main_keyboard = ReplyKeyboardMarkup(
     [
         [
-            "🤖 Что я умею",
-            "📋 Как забронировать"
+            "Что я умею",
+            "Как забронировать"
         ],
         [
-            "🔥 Идеи для отдыха",
-            "👩‍💼 Заявка менеджеру"
+            "Идеи для отдыха",
+            "^❗️ Отправить заявку менеджеру"
         ]
     ],
     resize_keyboard=True
@@ -993,7 +993,7 @@ async def send_to_manager(client, callback_query):
 # КНОПКА ГЛАВНОГО МЕНЮ "ЗАЯВКА МЕНЕДЖЕРУ"
 # ============================================================
 
-@app.on_message(filters.text & filters.regex("Заявка менеджеру"))
+@app.on_message(filters.text & filters.regex("^❗️ Отправить заявку менеджеру"))
 async def manager_request_button(client, message):
 
     user = message.from_user
@@ -1131,7 +1131,7 @@ async def vacation_ideas(client, message):
 
     await message.reply(
         "Давайте подберем несколько идей для отдыха.\n\n"
-        "Я могу рассказать про множество интересных мест, сравнить направления и многое другое "
+        "Я могу рассказать про множество интересных мест, сравнить направления и многое другое. "
         "Можно просто написать любые вводные (например, свою бюджет) — дальше я помогу ",
         reply_markup=main_keyboard
     )
@@ -1149,7 +1149,7 @@ async def chat_with_gpt(client, message):
         "Что я умею",
         "Как забронировать",
         "Идеи для отдыха",
-        "Заявка менеджеру"
+        "^❗️ Отправить заявку менеджеру"
     }
     
     if message.text in menu_buttons:
