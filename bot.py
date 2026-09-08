@@ -993,7 +993,7 @@ async def send_to_manager(client, callback_query):
 # КНОПКА ГЛАВНОГО МЕНЮ "ЗАЯВКА МЕНЕДЖЕРУ"
 # ============================================================
 
-@app.on_message(filters.text & filters.regex("❗️ Отправить заявку менеджеру"))
+@app.on_message(filters.text & filters.regex("^❗️ Отправить заявку менеджеру$"))
 async def manager_request_button(client, message):
 
     user = message.from_user
@@ -1086,7 +1086,7 @@ async def clear(client, message):
 # КНОПКА "ЧТО Я УМЕЮ"
 # ============================================================
 
-@app.on_message(filters.text & filters.regex("Что я умею"))
+@app.on_message(filters.text & filters.regex("^Что я умею$"))
 async def what_can_i_do(client, message):
 
     await message.reply(
@@ -1109,7 +1109,7 @@ async def what_can_i_do(client, message):
 # КНОПКА "КАК ЗАБРОНИРОВАТЬ"
 # ============================================================
 
-@app.on_message(filters.text & filters.regex("Как забронировать"))
+@app.on_message(filters.text & filters.regex("^Как забронировать$"))
 async def how_to_book(client, message):
 
     await message.reply(
