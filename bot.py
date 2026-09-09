@@ -717,7 +717,7 @@ def ask_gpt(user_id, user_message):
 
     try:
         response = openai_client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-5-mini",
             input=[
                 {"role": "developer", "content": SYSTEM_PROMPT}
             ] + messages,
