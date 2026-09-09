@@ -716,30 +716,53 @@ def ask_gpt(user_id, user_message):
     )
 
     try:
-
         response = openai_client.responses.create(
-        
             model="gpt-4.1-mini",
-        
             input=[
-                {
-                    "role": "developer",
-                    "content": SYSTEM_PROMPT
-                }
+                {"role": "developer", "content": SYSTEM_PROMPT}
             ] + messages,
-        
             tools=[
                 {
                     "type": "web_search",
-                    "search_context_size": "medium"
+                    "search_context_size": "medium",
+                    "filters": {
+                        "allowed_domains": [
+                            "anextour.ru",
+                            "bgoperator.ru",
+                            "coral.ru",
+                            "fstravel.com",
+                            "letsfly.travel",
+                            "loti.ru",
+                            "paks.ru",
+                            "pegast.ru",
+                            "r-express.ru",
+                            "space-travel.ru",
+                            "sunmar.ru",
+                            "travelata.ru",
+                            "arttour.ru",
+                            "intourist.ru",
+                            "ambotis.ru",
+                            "icstrvl.ru",
+                            "itmgroup.ru",
+                            "kazunion.ru",
+                            "oneclick.travel",
+                            "onetouch.travel",
+                            "pac.ru",
+                            "resort-holiday.com",
+                            "crystalbaytours.ru",
+                            "online.xpress.travel",
+                            "alean.ru",
+                            "delfin-tour.ru",
+                            "magput.ru",
+                            "online-express.ru",
+                            "ostrovok.ru",
+                            "tour-platform.ru"
+                        ]
+                    }
                 }
             ],
-        
-            include=[
-                "web_search_call.action.sources"
-            ]
+            include=["web_search_call.action.sources"]
         )
-
         # ----------------------------------------------------
         # Получаем текст ответа
         # ----------------------------------------------------
