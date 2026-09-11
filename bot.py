@@ -1004,11 +1004,53 @@ async def send_to_manager(client, callback_query):
             "Не удалось отправить заявку. Попробуйте ещё раз.",
             show_alert=True
         )
+    # ----------------------------------------------------
+    # Проверяем есть ли нужные поля
+    # ----------------------------------------------------
+
+def get_missing_manager_fields(request_text):
+
+    required_fields = {
+        "Страна": "куда хотите поехать?",
+        "Даты": "на какие даты или примерно в какой месяц планируете поездку?",
+        "Туристы": "сколько взрослых и детей едет? Если есть дети — укажите их возраст."
+    }
+
+    values = {}
+
+    for line in request_text.splitlines():
+
+        if ":" not in line:
+            continue
+
+        field, value = line.split(":", 1)
+
+        values[field.strip()] = value.strip()
+
+    missing = []
+
+    for field, question in required_fields.items():
+
+        value = values.get(field, "").lower()
+
+        if value in {
+            "",
+            "...",
+            "не указано",
+            "неизвестно",
+            "нет данных"
+        }:
+            missing.append((field, question))
+
+    return missing
 # ============================================================
 # КНОПКА ГЛАВНОГО МЕНЮ "ЗАЯВКА МЕНЕДЖЕРУ"
 # ============================================================
 
-@app.on_message(filters.text & filters.regex("^❗️ Отправить заявку менеджеру$"))
+@app.on_message(
+    filters.text &
+    filters.regex("^❗️ Отправить заявку менеджеру$")
+)
 async def manager_request_button(client, message):
 
     user = message.from_user
@@ -1016,12 +1058,58 @@ async def manager_request_button(client, message):
 
     try:
 
+        # ----------------------------------------------------
+        # Сначала формируем заявку
+        # ----------------------------------------------------
+
         request_text = await asyncio.to_thread(
             create_manager_request,
             user_id,
             user.first_name or "не указано",
             user.username
         )
+
+        # ----------------------------------------------------
+        # Проверяем обязательные поля
+        # ----------------------------------------------------
+
+        missing_fields = get_missing_manager_fields(
+            request_text
+        )
+
+        # ----------------------------------------------------
+        # Если данных не хватает —
+        # заявку менеджеру НЕ отправляем
+        # ----------------------------------------------------
+
+        if missing_fields:
+
+            questions = "\n".join(
+                f"• {question}"
+                for field, question in missing_fields
+            )
+
+            await message.reply(
+                "Давайте не будем отправлять пустую заявку 🙂\n\n"
+                "Мне нужно уточнить ещё немного информации:\n\n"
+                f"{questions}\n\n"
+                "Можете написать всё одним сообщением.",
+                reply_markup=main_keyboard
+            )
+
+            print(
+                f"⚠️ Заявка пользователя {user_id} не отправлена. "
+                f"Не хватает: "
+                f"{', '.join(field for field, question in missing_fields)}",
+                flush=True
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # Все обязательные данные есть —
+        # отправляем заявку менеджеру
+        # ----------------------------------------------------
 
         manager_message = (
             "🔥 НОВАЯ ЗАЯВКА ИЗ БОТА\n\n"
