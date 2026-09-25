@@ -529,7 +529,7 @@ def init_database():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -543,7 +543,7 @@ def init_database():
 
 
 def save_message(user_id, role, content):
-
+    user_id = str(user_id)
     connection = sqlite3.connect(DATABASE_PATH)
 
     cursor = connection.cursor()
@@ -563,6 +563,7 @@ def save_message(user_id, role, content):
 
 def get_history(user_id, limit=20):
 
+    user_id = str(user_id)
     connection = sqlite3.connect(DATABASE_PATH)
 
     cursor = connection.cursor()
@@ -599,7 +600,7 @@ def get_history(user_id, limit=20):
 
 
 def clear_history(user_id):
-
+    user_id = str(user_id)
     connection = sqlite3.connect(DATABASE_PATH)
 
     cursor = connection.cursor()
