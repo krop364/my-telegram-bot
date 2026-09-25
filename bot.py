@@ -2,8 +2,10 @@ import os
 import asyncio
 import threading
 import sqlite3
+import requests
+import hmac
 
-from flask import Flask
+from flask import Flask, request, jsonify
 from pyrogram import Client, filters
 from pyrogram.types import (
     ReplyKeyboardMarkup,
@@ -24,6 +26,10 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 MANAGER_CONTACT = os.environ.get("MANAGER_CONTACT")
 MANAGER_CHAT_ID = os.environ.get("MANAGER_CHAT_ID")
+MAX_BOT_TOKEN = os.environ.get("MAX_BOT_TOKEN")
+MAX_WEBHOOK_SECRET = os.environ.get("MAX_WEBHOOK_SECRET")
+
+MAX_API_URL = "https://platform-api2.max.ru"
 
 if not MANAGER_CHAT_ID:
     raise ValueError("❌ MANAGER_CHAT_ID не найден")
@@ -619,19 +625,64 @@ def clear_history(user_id):
 # FLASK
 # ============================================================
 
+
+# ============================================================
+# FLASK
+# ============================================================
+
 flask_app = Flask(__name__)
 
 
 @flask_app.route("/")
 def home():
-
     return "Бот работает!", 200
 
 
 @flask_app.route("/health")
 def health():
-
     return "OK", 200
+
+
+# ============================================================
+# WEBHOOK MAX
+# ============================================================
+
+@flask_app.route("/max/webhook", methods=["POST"])
+def max_webhook():
+
+    received_secret = request.headers.get(
+        "X-Max-Bot-Api-Secret",
+        ""
+    )
+
+    if not MAX_WEBHOOK_SECRET or not hmac.compare_digest(
+        received_secret,
+        MAX_WEBHOOK_SECRET
+    ):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    update = request.get_json(silent=True) or {}
+
+    if update.get("update_type") != "message_created":
+        return jsonify({"ok": True}), 200
+
+    message = update.get("message") or {}
+    body = message.get("body") or {}
+    sender = message.get("sender") or {}
+
+    text = (body.get("text") or "").strip()
+    user_id = sender.get("user_id")
+
+    if not text or not user_id:
+        return jsonify({"ok": True}), 200
+
+    threading.Thread(
+        target=process_max_message,
+        args=(user_id, text),
+        daemon=True
+    ).start()
+
+    return jsonify({"ok": True}), 200
 
 
 def run_flask():
@@ -648,6 +699,56 @@ def run_flask():
         port=port
     )
 
+# ============================================================
+# MAX                                                                                                                                               
+# ============================================================
+def send_max_message(user_id, text):
+
+    response = requests.post(
+        f"{MAX_API_URL}/messages",
+        headers={
+            "Authorization": MAX_BOT_TOKEN,
+            "Content-Type": "application/json"
+        },
+        params={
+            "user_id": user_id
+        },
+        json={
+            "text": text
+        },
+        timeout=30
+    )
+
+    response.raise_for_status()
+    return response.json()
+
+# ============================================================
+# ОБРАБОТКА СООБЩЕНИЙ MAX
+# ============================================================
+
+def process_max_message(user_id, text):
+
+    try:
+        # Разделяем историю Telegram и MAX
+        memory_id = f"max:{user_id}"
+
+        answer, need_manager = ask_gpt(
+            memory_id,
+            text
+        )
+
+        send_max_message(
+            user_id,
+            answer
+        )
+
+    except Exception as e:
+        print(
+            "❌ Ошибка MAX:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
 
 # ============================================================
 # TELEGRAM
