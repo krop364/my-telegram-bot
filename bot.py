@@ -521,11 +521,7 @@ DATABASE_PATH = "bot_memory.db"
 
 
 def init_database():
-    # Проверяем подключение MAX
-threading.Thread(
-    target=check_max_subscription,
-    daemon=True
-).start()
+
 
     connection = sqlite3.connect(DATABASE_PATH)
 
@@ -1540,7 +1536,31 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
+    if __name__ == "__main__":
 
+    print("🚀 ЗАПУСК TELEGRAM-БОТА", flush=True)
+
+    # Создаём базу данных
+    init_database()
+
+    # Проверяем подписку MAX в отдельном потоке
+    threading.Thread(
+        target=check_max_subscription,
+        daemon=True
+    ).start()
+
+    # Запускаем Flask
+    flask_thread = threading.Thread(
+        target=run_flask,
+        daemon=True
+    )
+
+    flask_thread.start()
+
+    print("🌐 Flask запущен", flush=True)
+    print("🤖 Запускаю Telegram...", flush=True)
+
+    app.run()
     # Запускаем Flask
     flask_thread = threading.Thread(
         target=run_flask,
