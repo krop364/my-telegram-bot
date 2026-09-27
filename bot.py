@@ -521,6 +521,11 @@ DATABASE_PATH = "bot_memory.db"
 
 
 def init_database():
+    # Проверяем подключение MAX
+threading.Thread(
+    target=check_max_subscription,
+    daemon=True
+).start()
 
     connection = sqlite3.connect(DATABASE_PATH)
 
