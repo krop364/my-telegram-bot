@@ -703,6 +703,69 @@ def run_flask():
 # ============================================================
 # MAX                                                                                                                                               
 # ============================================================
+# ============================================================
+# ПРОВЕРКА ПОДПИСКИ MAX
+# ============================================================
+
+def check_max_subscription():
+
+    if not MAX_BOT_TOKEN:
+        print("❌ MAX_BOT_TOKEN не найден", flush=True)
+        return
+
+    if not MAX_WEBHOOK_SECRET:
+        print("❌ MAX_WEBHOOK_SECRET не найден", flush=True)
+        return
+
+    try:
+        response = requests.get(
+            f"{MAX_API_URL}/subscriptions",
+            headers={
+                "Authorization": MAX_BOT_TOKEN
+            },
+            timeout=20
+        )
+
+        print(
+            "🔍 MAX: статус проверки подписок:",
+            response.status_code,
+            flush=True
+        )
+
+        if response.ok:
+            subscriptions = response.json()
+
+            webhook_url = (
+                "https://my-telegram-bot-nve9.onrender.com/max/webhook"
+            )
+
+            if webhook_url in response.text:
+                print("✅ Webhook MAX зарегистрирован", flush=True)
+            else:
+                print(
+                    "⚠️ Нужный webhook MAX не найден",
+                    flush=True
+                )
+        else:
+            print(
+                "❌ MAX вернул ошибку:",
+                response.text[:500],
+                flush=True
+            )
+
+    except requests.exceptions.SSLError:
+        print(
+            "❌ MAX: ошибка проверки SSL-сертификата",
+            flush=True
+        )
+
+    except Exception as e:
+        print(
+            "❌ MAX: ошибка проверки подписки:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
 def send_max_message(user_id, text):
 
     response = requests.post(
