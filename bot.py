@@ -1536,12 +1536,6 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    if __name__ == "__main__":
-
-    print("🚀 ЗАПУСК TELEGRAM-БОТА", flush=True)
-
-    # Создаём базу данных
-    init_database()
 
     # Проверяем подписку MAX в отдельном потоке
     threading.Thread(
@@ -1549,18 +1543,6 @@ if __name__ == "__main__":
         daemon=True
     ).start()
 
-    # Запускаем Flask
-    flask_thread = threading.Thread(
-        target=run_flask,
-        daemon=True
-    )
-
-    flask_thread.start()
-
-    print("🌐 Flask запущен", flush=True)
-    print("🤖 Запускаю Telegram...", flush=True)
-
-    app.run()
     # Запускаем Flask
     flask_thread = threading.Thread(
         target=run_flask,
