@@ -842,6 +842,50 @@ def check_max_subscription():
             str(e),
             flush=True
         )
+def register_max_webhook():
+
+    webhook_url = (
+        "https://my-telegram-bot-nve9.onrender.com/max/webhook"
+    )
+
+    try:
+        response = requests.post(
+            f"{MAX_API_URL}/subscriptions",
+            headers={
+                "Authorization": MAX_BOT_TOKEN,
+                "Content-Type": "application/json"
+            },
+            json={
+                "url": webhook_url,
+                "update_types": [
+                    "message_created",
+                    "bot_started"
+                ],
+                "secret": MAX_WEBHOOK_SECRET
+            },
+            timeout=20,
+            verify=MAX_CA_BUNDLE
+        )
+
+        print(
+            "🔔 MAX: регистрация webhook:",
+            response.status_code,
+            flush=True
+        )
+
+        print(
+            "🔔 MAX: ответ:",
+            response.text[:500],
+            flush=True
+        )
+
+    except Exception as e:
+        print(
+            "❌ MAX: ошибка регистрации webhook:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
 def send_max_message(user_id, text):
 
     response = requests.post(
