@@ -713,14 +713,38 @@ def run_flask():
 def check_max_cert_files():
 
     for cert_file in [MAX_ROOT_CERT, MAX_SUB_CERT]:
-        if os.path.exists(cert_file):
-            print(
-                f"✅ Сертификат найден: {cert_file}",
-                flush=True
-            )
-        else:
+
+        if not os.path.exists(cert_file):
             print(
                 f"❌ Сертификат НЕ найден: {cert_file}",
+                flush=True
+            )
+            continue
+
+        print(
+            f"✅ Сертификат найден: {cert_file}",
+            flush=True
+        )
+
+        try:
+            with open(cert_file, "rb") as f:
+                cert_data = f.read(100)
+
+            if b"-----BEGIN CERTIFICATE-----" in cert_data:
+                print(
+                    f"📜 Формат сертификата: PEM — {cert_file}",
+                    flush=True
+                )
+            else:
+                print(
+                    f"📦 Формат сертификата: DER — {cert_file}",
+                    flush=True
+                )
+
+        except Exception as e:
+            print(
+                f"❌ Не удалось прочитать сертификат {cert_file}: "
+                f"{type(e).__name__}: {e}",
                 flush=True
             )
 def check_max_subscription():
