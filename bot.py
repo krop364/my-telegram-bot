@@ -816,12 +816,17 @@ def check_max_subscription():
             )
 
             if webhook_url in response.text:
-                print("✅ Webhook MAX зарегистрирован", flush=True)
+                print(
+                    "✅ Webhook MAX уже зарегистрирован",
+                    flush=True
+                )
             else:
                 print(
                     "⚠️ Нужный webhook MAX не найден",
                     flush=True
                 )
+            
+                register_max_webhook()
         else:
             print(
                 "❌ MAX вернул ошибку:",
