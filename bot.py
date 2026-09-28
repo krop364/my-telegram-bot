@@ -30,6 +30,8 @@ MAX_BOT_TOKEN = os.environ.get("MAX_BOT_TOKEN")
 MAX_WEBHOOK_SECRET = os.environ.get("MAX_WEBHOOK_SECRET")
 
 MAX_API_URL = "https://platform-api2.max.ru"
+MAX_ROOT_CERT = "Russian_Trusted_Root_CA.cer"
+MAX_SUB_CERT = "Russian_Trusted_Sub_CA_2024.cer"
 
 if not MANAGER_CHAT_ID:
     raise ValueError("❌ MANAGER_CHAT_ID не найден")
@@ -708,6 +710,19 @@ def run_flask():
 # ПРОВЕРКА ПОДПИСКИ MAX
 # ============================================================
 
+def check_max_cert_files():
+
+    for cert_file in [MAX_ROOT_CERT, MAX_SUB_CERT]:
+        if os.path.exists(cert_file):
+            print(
+                f"✅ Сертификат найден: {cert_file}",
+                flush=True
+            )
+        else:
+            print(
+                f"❌ Сертификат НЕ найден: {cert_file}",
+                flush=True
+            )
 def check_max_subscription():
 
     if not MAX_BOT_TOKEN:
@@ -1536,6 +1551,9 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
+    
+    # Проверяем наличие сертификатов MAX
+    check_max_cert_files()
 
     # Проверяем подписку MAX в отдельном потоке
     threading.Thread(
