@@ -33,6 +33,41 @@ MAX_API_URL = "https://platform-api2.max.ru"
 MAX_ROOT_CERT = "Russian_Trusted_Root_CA.cer"
 MAX_SUB_CERT = "Russian_Trusted_Sub_CA_2024.cer"
 
+MAX_CA_BUNDLE = "max_ca_bundle.pem"
+
+
+def create_max_ca_bundle():
+
+    try:
+        with open(MAX_CA_BUNDLE, "wb") as output_file:
+
+            for cert_file in [MAX_ROOT_CERT, MAX_SUB_CERT]:
+
+                with open(cert_file, "rb") as input_file:
+                    cert_data = input_file.read()
+
+                output_file.write(cert_data)
+
+                if not cert_data.endswith(b"\n"):
+                    output_file.write(b"\n")
+
+        print(
+            f"✅ CA bundle MAX создан: {MAX_CA_BUNDLE}",
+            flush=True
+        )
+
+        return True
+
+    except Exception as e:
+        print(
+            "❌ Ошибка создания CA bundle MAX:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
+
+        return False
+
 if not MANAGER_CHAT_ID:
     raise ValueError("❌ MANAGER_CHAT_ID не найден")
 
@@ -763,7 +798,8 @@ def check_max_subscription():
             headers={
                 "Authorization": MAX_BOT_TOKEN
             },
-            timeout=20
+            timeout=20,
+            verify=MAX_CA_BUNDLE
         )
 
         print(
@@ -1578,6 +1614,9 @@ if __name__ == "__main__":
     
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
+   
+    # Создаём общий CA bundle для MAX
+    create_max_ca_bundle()
 
     # Проверяем подписку MAX в отдельном потоке
     threading.Thread(
