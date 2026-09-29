@@ -905,10 +905,25 @@ def send_max_message(user_id, text):
         json={
             "text": text
         },
-        timeout=30
+        timeout=30,
+        verify=MAX_CA_BUNDLE
     )
 
+    print(
+        "📤 MAX: отправка сообщения:",
+        response.status_code,
+        flush=True
+    )
+
+    if not response.ok:
+        print(
+            "❌ MAX: ответ API:",
+            response.text[:500],
+            flush=True
+        )
+
     response.raise_for_status()
+
     return response.json()
 
 # ============================================================
