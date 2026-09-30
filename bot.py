@@ -1798,28 +1798,6 @@ if __name__ == "__main__":
     print("🌐 Flask запущен", flush=True)
     print("🤖 Запускаю Telegram...", flush=True)
     
-    
-    async def run_telegram():
-    
-        global telegram_loop
-    
-        telegram_loop = asyncio.get_running_loop()
-    
-        print(
-            "🔄 Telegram event loop сохранён",
-            flush=True
-        )
-    
-        await app.start()
-    
-        print(
-            "✅ Telegram запущен",
-            flush=True
-        )
-    
-        await asyncio.Event().wait()
-    
-    
-    asyncio.run(run_telegram())
+    app.run()
     
     print("🛑 Telegram-бот остановлен", flush=True)
