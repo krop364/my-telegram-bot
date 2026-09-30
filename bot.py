@@ -965,16 +965,30 @@ def send_max_request_to_manager(user_id):
             f"{request_text}"
         )
 
-        # Передаём отправку в asyncio-loop Telegram
-        future = asyncio.run_coroutine_threadsafe(
-            app.send_message(
-                chat_id=MANAGER_CHAT_ID,
-                text=manager_message
-            ),
-            telegram_loop
+        # Отправляем менеджеру напрямую через Telegram Bot API
+        response = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={
+                "chat_id": MANAGER_CHAT_ID,
+                "text": manager_message
+            },
+            timeout=30
         )
 
-        future.result(timeout=30)
+        print(
+            "📨 Telegram: отправка MAX-заявки менеджеру:",
+            response.status_code,
+            flush=True
+        )
+
+        if not response.ok:
+            print(
+                "❌ Telegram API:",
+                response.text[:500],
+                flush=True
+            )
+
+        response.raise_for_status()
 
         print(
             f"📩 MAX: заявка пользователя {user_id} "
@@ -994,7 +1008,6 @@ def send_max_request_to_manager(user_id):
         )
 
         return False, []
-        
 def process_max_message(user_id, text):
 
     try:
@@ -1062,7 +1075,6 @@ app = Client(
     api_hash=API_HASH,
     bot_token=TELEGRAM_TOKEN
 )
-telegram_loop = None
 # ============================================================
 # ГЛАВНОЕ МЕНЮ
 # ============================================================
