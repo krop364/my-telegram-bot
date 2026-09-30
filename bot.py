@@ -930,10 +930,74 @@ def send_max_message(user_id, text):
 # ОБРАБОТКА СООБЩЕНИЙ MAX
 # ============================================================
 
+def send_max_request_to_manager(user_id):
+
+    try:
+        memory_id = f"max:{user_id}"
+
+        # Формируем заявку из истории клиента MAX
+        request_text = create_manager_request(
+            memory_id,
+            "Клиент MAX",
+            None
+        )
+
+        # Проверяем обязательные поля
+        missing_fields = get_missing_manager_fields(
+            request_text
+        )
+
+        # Если данных недостаточно — менеджеру пока не отправляем
+        if missing_fields:
+
+            print(
+                f"⚠️ MAX: заявка пользователя {user_id} "
+                f"не отправлена. Не хватает: "
+                f"{', '.join(field for field, question in missing_fields)}",
+                flush=True
+            )
+
+            return False, missing_fields
+
+        manager_message = (
+            "🔥 НОВАЯ ЗАЯВКА ИЗ MAX\n\n"
+            f"MAX ID: {user_id}\n\n"
+            f"{request_text}"
+        )
+
+        # Передаём отправку в asyncio-loop Telegram
+        future = asyncio.run_coroutine_threadsafe(
+            app.send_message(
+                chat_id=MANAGER_CHAT_ID,
+                text=manager_message
+            ),
+            telegram_loop
+        )
+
+        future.result(timeout=30)
+
+        print(
+            f"📩 MAX: заявка пользователя {user_id} "
+            f"отправлена менеджеру в Telegram",
+            flush=True
+        )
+
+        return True, []
+
+    except Exception as e:
+
+        print(
+            "❌ MAX: ошибка отправки заявки менеджеру:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
+
+        return False, []
+        
 def process_max_message(user_id, text):
 
     try:
-        # Разделяем историю Telegram и MAX
         memory_id = f"max:{user_id}"
 
         answer, need_manager = ask_gpt(
@@ -941,12 +1005,46 @@ def process_max_message(user_id, text):
             text
         )
 
+        # Сначала отправляем обычный ответ AI клиенту
         send_max_message(
             user_id,
             answer
         )
 
+        # Если AI решил, что пора передавать менеджеру
+        if need_manager:
+
+            success, missing_fields = (
+                send_max_request_to_manager(user_id)
+            )
+
+            # Данных пока недостаточно
+            if not success and missing_fields:
+
+                questions = "\n".join(
+                    f"• {question}"
+                    for field, question in missing_fields
+                )
+
+                send_max_message(
+                    user_id,
+                    "Чтобы передать заявку менеджеру, "
+                    "мне нужно уточнить ещё немного информации:\n\n"
+                    f"{questions}\n\n"
+                    "Можете написать всё одним сообщением."
+                )
+
+            # Заявка успешно ушла менеджеру
+            elif success:
+
+                send_max_message(
+                    user_id,
+                    "✅ Готово! Я отправил вашу заявку менеджеру. "
+                    "Он получил основные детали вашего запроса."
+                )
+
     except Exception as e:
+
         print(
             "❌ Ошибка MAX:",
             type(e).__name__,
@@ -964,6 +1062,7 @@ app = Client(
     api_hash=API_HASH,
     bot_token=TELEGRAM_TOKEN
 )
+telegram_loop = None
 # ============================================================
 # ГЛАВНОЕ МЕНЮ
 # ============================================================
