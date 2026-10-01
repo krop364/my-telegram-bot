@@ -1032,20 +1032,10 @@ def process_max_message(user_id, text):
             )
 
             # Данных пока недостаточно
+            # Ничего дополнительно не отправляем,
+            # потому что AI уже задал уточняющий вопрос
             if not success and missing_fields:
-
-                questions = "\n".join(
-                    f"• {question}"
-                    for field, question in missing_fields
-                )
-
-                send_max_message(
-                    user_id,
-                    "Чтобы передать заявку менеджеру, "
-                    "мне нужно уточнить ещё немного информации:\n\n"
-                    f"{questions}\n\n"
-                    "Можете написать всё одним сообщением."
-                )
+                pass
 
             # Заявка успешно ушла менеджеру
             elif success:
