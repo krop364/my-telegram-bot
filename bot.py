@@ -1694,6 +1694,8 @@ async def vacation_ideas(client, message):
 
 @app.on_message(filters.text)
 async def chat_with_gpt(client, message):
+    if str(message.chat.id) == str(MANAGER_CHAT_ID):
+        return
 
     # Не обрабатываем команды
     if message.text.startswith("/"):
