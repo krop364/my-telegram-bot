@@ -703,7 +703,7 @@ def max_webhook():
     update = request.get_json(silent=True) or {}
 
     update_type = update.get("update_type")
-        print(
+    print(
         "📨 MAX UPDATE TYPE:",
         update_type,
         flush=True
