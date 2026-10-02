@@ -700,9 +700,36 @@ def max_webhook():
     ):
         return jsonify({"error": "Unauthorized"}), 401
 
-    update = request.get_json(silent=True) or {}
+       update = request.get_json(silent=True) or {}
 
-    if update.get("update_type") != "message_created":
+    update_type = update.get("update_type")
+
+    # --------------------------------------------------------
+    # ПОЛЬЗОВАТЕЛЬ ЗАПУСТИЛ БОТА В MAX
+    # --------------------------------------------------------
+
+    if update_type == "bot_started":
+
+        user_id = update.get("user_id")
+
+        if user_id:
+
+            send_max_message(
+                user_id,
+                "👋 Привет!\n\n"
+                "Я помощник по путешествиям офиса Anex на Звездном бульваре. "
+                "Я использую много личной информации, которой меня обучила сама владелица офиса Ирина.\n\n"
+                "Можете просто написать мне свой вопрос или воспользоваться кнопками ниже.",
+                show_menu=True
+            )
+
+        return jsonify({"ok": True}), 200
+
+    # --------------------------------------------------------
+    # ОБЫЧНОЕ СООБЩЕНИЕ
+    # --------------------------------------------------------
+
+    if update_type != "message_created":
         return jsonify({"ok": True}), 200
 
     message = update.get("message") or {}
