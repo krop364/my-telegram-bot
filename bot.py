@@ -891,7 +891,45 @@ def register_max_webhook():
             str(e),
             flush=True
         )
-def send_max_message(user_id, text):
+
+
+        MAX_MAIN_KEYBOARD = {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": [
+                    [
+                        {
+                            "type": "message",
+                            "text": "Что я умею"
+                        },
+                        {
+                            "type": "message",
+                            "text": "Как забронировать"
+                        }
+                    ],
+                    [
+                        {
+                            "type": "message",
+                            "text": "Идеи для отдыха"
+                        },
+                        {
+                            "type": "message",
+                            "text": "❗️ Отправить заявку менеджеру"
+                        }
+                    ]
+                ]
+            }
+        }
+def send_max_message(user_id, text, show_menu=False):
+
+    message_data = {
+        "text": text
+    }
+
+    if show_menu:
+        message_data["attachments"] = [
+            MAX_MAIN_KEYBOARD
+        ]
 
     response = requests.post(
         f"{MAX_API_URL}/messages",
@@ -902,9 +940,7 @@ def send_max_message(user_id, text):
         params={
             "user_id": user_id
         },
-        json={
-            "text": text
-        },
+        json=message_data,
         timeout=30,
         verify=MAX_CA_BUNDLE
     )
@@ -1022,6 +1058,7 @@ def process_max_message(user_id, text):
         send_max_message(
             user_id,
             answer
+            show_menu=True
         )
 
         # Если AI решил, что пора передавать менеджеру
