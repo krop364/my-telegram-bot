@@ -700,7 +700,7 @@ def max_webhook():
     ):
         return jsonify({"error": "Unauthorized"}), 401
 
-       update = request.get_json(silent=True) or {}
+    update = request.get_json(silent=True) or {}
 
     update_type = update.get("update_type")
 
