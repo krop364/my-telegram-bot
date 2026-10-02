@@ -1105,8 +1105,7 @@ def process_max_message(user_id, text):
         # Сначала отправляем обычный ответ AI клиенту
         send_max_message(
             user_id,
-            answer,
-            show_menu=True
+            answer
         )
 
         # Если AI решил, что пора передавать менеджеру
