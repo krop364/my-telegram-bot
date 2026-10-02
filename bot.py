@@ -703,14 +703,26 @@ def max_webhook():
     update = request.get_json(silent=True) or {}
 
     update_type = update.get("update_type")
+        print(
+        "📨 MAX UPDATE TYPE:",
+        update_type,
+        flush=True
+    )
 
     # --------------------------------------------------------
     # ПОЛЬЗОВАТЕЛЬ ЗАПУСТИЛ БОТА В MAX
     # --------------------------------------------------------
 
-    if update_type == "bot_started":
+       if update_type == "bot_started":
 
-        user_id = update.get("user_id")
+        user = update.get("user") or {}
+        user_id = user.get("user_id")
+
+        print(
+            "🚀 MAX BOT_STARTED:",
+            "user_id =", user_id,
+            flush=True
+        )
 
         if user_id:
 
