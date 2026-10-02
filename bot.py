@@ -893,33 +893,33 @@ def register_max_webhook():
         )
 
 
-        MAX_MAIN_KEYBOARD = {
-            "type": "inline_keyboard",
-            "payload": {
-                "buttons": [
-                    [
-                        {
-                            "type": "message",
-                            "text": "Что я умею"
-                        },
-                        {
-                            "type": "message",
-                            "text": "Как забронировать"
-                        }
-                    ],
-                    [
-                        {
-                            "type": "message",
-                            "text": "Идеи для отдыха"
-                        },
-                        {
-                            "type": "message",
-                            "text": "❗️ Отправить заявку менеджеру"
-                        }
-                    ]
-                ]
-            }
-        }
+MAX_MAIN_KEYBOARD = {
+    "type": "inline_keyboard",
+    "payload": {
+        "buttons": [
+            [
+                {
+                    "type": "message",
+                    "text": "Что я умею"
+                },
+                {
+                    "type": "message",
+                    "text": "Как забронировать"
+                }
+            ],
+            [
+                {
+                    "type": "message",
+                    "text": "Идеи для отдыха"
+                },
+                {
+                    "type": "message",
+                    "text": "❗️ Отправить заявку менеджеру"
+                }
+            ]
+        ]
+    }
+}
 def send_max_message(user_id, text, show_menu=False):
 
     message_data = {
