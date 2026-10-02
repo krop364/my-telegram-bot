@@ -1057,7 +1057,7 @@ def process_max_message(user_id, text):
         # Сначала отправляем обычный ответ AI клиенту
         send_max_message(
             user_id,
-            answer
+            answer,
             show_menu=True
         )
 
