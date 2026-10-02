@@ -713,7 +713,7 @@ def max_webhook():
     # ПОЛЬЗОВАТЕЛЬ ЗАПУСТИЛ БОТА В MAX
     # --------------------------------------------------------
 
-       if update_type == "bot_started":
+    if update_type == "bot_started":
 
         user = update.get("user") or {}
         user_id = user.get("user_id")
