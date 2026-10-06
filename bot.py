@@ -573,7 +573,7 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-        cursor.execute("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS sent_manager_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             platform TEXT NOT NULL,
