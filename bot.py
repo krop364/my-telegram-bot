@@ -669,6 +669,35 @@ def clear_history(user_id):
     )
 def is_manager_request_duplicate(platform, user_id, request_text):
 
+    def normalize_request(text):
+
+        important_fields = {
+            "Вылет",
+            "Страна",
+            "Даты",
+            "Ночи",
+            "Туристы",
+            "Бюджет",
+            "Отель"
+        }
+
+        result = {}
+
+        for line in text.splitlines():
+
+            if ":" not in line:
+                continue
+
+            field, value = line.split(":", 1)
+
+            field = field.strip()
+            value = value.strip().lower()
+
+            if field in important_fields:
+                result[field] = value
+
+        return result
+
     connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
 
@@ -689,7 +718,10 @@ def is_manager_request_duplicate(platform, user_id, request_text):
     if not row:
         return False
 
-    return row[0].strip() == request_text.strip()
+    previous_request = normalize_request(row[0])
+    current_request = normalize_request(request_text)
+
+    return previous_request == current_request
 
 
 def save_manager_request(platform, user_id, request_text):
@@ -1008,16 +1040,32 @@ MAX_MAIN_KEYBOARD = {
         ]
     }
 }
-def send_max_message(user_id, text, show_menu=False):
-
-    message_data = {
-        "text": text
-    }
-
-    if show_menu:
-        message_data["attachments"] = [
-            MAX_MAIN_KEYBOARD
+MAX_MANAGER_KEYBOARD = {
+    "type": "inline_keyboard",
+    "payload": {
+        "buttons": [
+            [
+                {
+                    "type": "message",
+                    "text": "❗️ Отправить заявку менеджеру"
+                }
+            ]
         ]
+    }
+}
+def send_max_message(
+    user_id,
+    text,
+    show_menu=False,
+    show_manager_button=False
+):
+    message_data = {"text": text}
+
+    if show_manager_button:
+        message_data["attachments"] = [MAX_MANAGER_KEYBOARD]
+
+    elif show_menu:
+        message_data["attachments"] = [MAX_MAIN_KEYBOARD]
 
     response = requests.post(
         f"{MAX_API_URL}/messages",
@@ -1304,7 +1352,7 @@ def process_max_message(user_id, text):
             send_max_message(
                 user_id,
                 answer,
-                show_menu=True
+                show_manager_button=True
             )
         else:
             send_max_message(
