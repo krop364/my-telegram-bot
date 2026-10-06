@@ -573,6 +573,15 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sent_manager_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            request_text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     connection.commit()
     connection.close()
@@ -658,7 +667,47 @@ def clear_history(user_id):
         f"🧹 История пользователя {user_id} очищена",
         flush=True
     )
+def is_manager_request_duplicate(platform, user_id, request_text):
 
+    connection = sqlite3.connect(DATABASE_PATH)
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT request_text
+        FROM sent_manager_requests
+        WHERE platform = ? AND user_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (platform, str(user_id))
+    )
+
+    row = cursor.fetchone()
+    connection.close()
+
+    if not row:
+        return False
+
+    return row[0].strip() == request_text.strip()
+
+
+def save_manager_request(platform, user_id, request_text):
+
+    connection = sqlite3.connect(DATABASE_PATH)
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO sent_manager_requests
+        (platform, user_id, request_text)
+        VALUES (?, ?, ?)
+        """,
+        (platform, str(user_id), request_text)
+    )
+
+    connection.commit()
+    connection.close()
 
 # ============================================================
 # FLASK
@@ -1033,7 +1082,21 @@ def send_max_request_to_manager(user_id):
             )
 
             return False, missing_fields
+       
+        # Проверяем, не отправляли ли уже такую же заявку
+        if is_manager_request_duplicate(
+            "max",
+            user_id,
+            request_text
+        ):
+            print(
+                f"♻️ MAX: повторная заявка пользователя {user_id} "
+                f"не отправлена",
+                flush=True
+            )
 
+            return "duplicate", []
+            
         manager_message = (
             "🔥 НОВАЯ ЗАЯВКА ИЗ MAX\n\n"
             f"MAX ID: {user_id}\n\n"
@@ -1064,7 +1127,11 @@ def send_max_request_to_manager(user_id):
             )
 
         response.raise_for_status()
-
+        save_manager_request(
+            "max",
+            user_id,
+            request_text
+        )
         print(
             f"📩 MAX: заявка пользователя {user_id} "
             f"отправлена менеджеру в Telegram",
@@ -1195,6 +1262,14 @@ def process_max_message(user_id, text):
                     show_menu=True
                 )
 
+            elif success == "duplicate":
+
+                send_max_message(
+                    user_id,
+                    "✅ Эта заявка уже отправлена менеджеру.\n\n"
+                    "Повторно отправлять её не нужно — менеджер уже получил данные.",
+                    show_menu=True
+                )
             elif success:
 
                 send_max_message(
