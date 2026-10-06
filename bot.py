@@ -1896,6 +1896,11 @@ async def chat_with_gpt(client, message):
         user_id,
         flush=True
     )
+    print(
+    "💬 CHAT ID:",
+    message.chat.id,
+    flush=True
+    )
     print("====================================")
 
     try:
