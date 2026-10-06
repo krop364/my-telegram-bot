@@ -1298,12 +1298,19 @@ def process_max_message(user_id, text):
             text
         )
 
-        # Сначала отправляем обычный ответ AI клиенту
-        send_max_message(
-            user_id,
-            answer
-        )
-
+        # Если AI предлагает обратиться к менеджеру,
+        # показываем меню с кнопкой отправки заявки
+        if need_manager:
+            send_max_message(
+                user_id,
+                answer,
+                show_menu=True
+            )
+        else:
+            send_max_message(
+                user_id,
+                answer
+            )
     except Exception as e:
 
         print(
