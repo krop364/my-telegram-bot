@@ -691,11 +691,6 @@ def save_manager_request(platform, user_id, request_text):
 # FLASK
 # ============================================================
 
-
-# ============================================================
-# FLASK
-# ============================================================
-
 flask_app = Flask(__name__)
 
 
@@ -777,11 +772,7 @@ def max_webhook():
 
     text = (body.get("text") or "").strip()
     user_id = sender.get("user_id")
-    print(
-        "👤 MAX SENDER:",
-        sender,
-        flush=True
-    )
+
     if not text or not user_id:
         return jsonify({"ok": True}), 200
 
@@ -1095,9 +1086,18 @@ def send_max_request_to_manager(user_id):
 
             return "duplicate", []
             
+        request_lines = [
+            line
+            for line in request_text.splitlines()
+            if not line.startswith("Имя:")
+            and not line.startswith("Контакт:")
+        ]
+        
+        request_text = "\n".join(request_lines)
+        
         manager_message = (
             "🔥 НОВАЯ ЗАЯВКА ИЗ MAX\n\n"
-            f"MAX ID: {user_id}\n\n"
+            f"Контакт: https://web.max.ru/{user_id}\n"
             f"{request_text}"
         )
 
@@ -1366,22 +1366,6 @@ manager_keyboard = InlineKeyboardMarkup(
 
 def ask_gpt(user_id, user_message):
 
-    print("========================================")
-    print("🤖 НАЧАЛО OPENAI ЗАПРОСА")
-    print("========================================")
-
-    print(
-        "👤 Пользователь:",
-        user_id,
-        flush=True
-    )
-
-    print(
-        "💬 Сообщение:",
-        user_message,
-        flush=True
-    )
-
     # --------------------------------------------------------
     # Получаем предыдущую историю
     # --------------------------------------------------------
@@ -1389,11 +1373,6 @@ def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
         limit=20
-    )
-
-    print(
-        f"🧠 Получено сообщений из памяти: {len(history)}",
-        flush=True
     )
 
     # --------------------------------------------------------
@@ -1410,11 +1389,6 @@ def ask_gpt(user_id, user_message):
     # --------------------------------------------------------
     # Запрос в OpenAI
     # --------------------------------------------------------
-
-    print(
-        "📡 Вызываю OpenAI...",
-        flush=True
-    )
 
     try:
         response = openai_client.responses.create(
@@ -1473,24 +1447,7 @@ def ask_gpt(user_id, user_message):
 # ----------------------------------------------------
 
         answer = response.output_text
-        
-        print("========================================")
-        print("✅ OPENAI ОТВЕТИЛ")
-        print("========================================")
-        
-        print(
-            answer,
-            flush=True
-        )
-        print("========================================")
-        print("🌐 WEB SEARCH DEBUG")
-        print("========================================")
-        
-        for item in response.output:
-            print(item, flush=True)
-        
-        print("========================================")
-        
+      
         # ----------------------------------------------------
         # Проверяем, нужно ли передать клиента менеджеру
         # ----------------------------------------------------
@@ -1965,30 +1922,7 @@ async def chat_with_gpt(client, message):
         return
     user_id = message.from_user.id
 
-    print("====================================")
-    print(
-        "📩 ПОЛУЧЕНО СООБЩЕНИЕ:",
-        message.text,
-        flush=True
-    )
-    print(
-        "👤 USER ID:",
-        user_id,
-        flush=True
-    )
-    print(
-    "💬 CHAT ID:",
-    message.chat.id,
-    flush=True
-    )
-    print("====================================")
-
     try:
-
-        print(
-            "➡️ Передаю сообщение в ask_gpt()",
-            flush=True
-        )
 
         answer, need_manager = await asyncio.to_thread(
             ask_gpt,
@@ -2003,11 +1937,6 @@ async def chat_with_gpt(client, message):
             )
         else:
             await message.reply(answer)
-
-        print(
-            "📤 Ответ отправлен пользователю",
-            flush=True
-        )
 
     except Exception as e:
 
