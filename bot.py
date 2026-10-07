@@ -777,7 +777,11 @@ def max_webhook():
 
     text = (body.get("text") or "").strip()
     user_id = sender.get("user_id")
-
+    print(
+        "👤 MAX SENDER:",
+        sender,
+        flush=True
+    )
     if not text or not user_id:
         return jsonify({"ok": True}), 200
 
