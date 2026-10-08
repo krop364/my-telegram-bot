@@ -772,18 +772,13 @@ def max_webhook():
 
     text = (body.get("text") or "").strip()
     user_id = sender.get("user_id")
-    print(
-    "🔎 MAX IDS:",
-    "sender_user_id =", user_id,
-    "recipient =", message.get("recipient"),
-    flush=True
-    )
+    chat_id = (message.get("recipient") or {}).get("chat_id")
     if not text or not user_id:
         return jsonify({"ok": True}), 200
 
     threading.Thread(
         target=process_max_message,
-        args=(user_id, text),
+        args=(user_id, text, chat_id),
         daemon=True
     ).start()
 
@@ -1048,7 +1043,7 @@ def send_max_message(
 # ОБРАБОТКА СООБЩЕНИЙ MAX
 # ============================================================
 
-def send_max_request_to_manager(user_id):
+def send_max_request_to_manager(user_id, chat_id):
 
     try:
         memory_id = f"max:{user_id}"
@@ -1102,7 +1097,7 @@ def send_max_request_to_manager(user_id):
         
         manager_message = (
             "🔥 НОВАЯ ЗАЯВКА ИЗ MAX\n\n"
-            f"Контакт: https://web.max.ru/{user_id}\n"
+            f"Контакт: https://web.max.ru/{chat_id}\n"
             f"{request_text}"
         )
 
@@ -1153,7 +1148,7 @@ def send_max_request_to_manager(user_id):
         )
 
         return False, []
-def process_max_message(user_id, text):
+def process_max_message(user_id, text, chat_id):
 
     try:
         memory_id = f"max:{user_id}"
@@ -1246,7 +1241,7 @@ def process_max_message(user_id, text):
         if text == "❗️ Отправить заявку менеджеру":
 
             success, missing_fields = (
-                send_max_request_to_manager(user_id)
+                send_max_request_to_manager(user_id, chat_id)
             )
 
             if missing_fields:
