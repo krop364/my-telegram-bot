@@ -773,9 +773,9 @@ def max_webhook():
     text = (body.get("text") or "").strip()
     user_id = sender.get("user_id")
     print(
-    "🔎 MAX USERNAME:",
-    sender.get("username"),
-    flush=True
+        "🔎 MAX SENDER FIELDS:",
+        list(sender.keys()),
+        flush=True
     )
     print(
     "🔎 MAX IDS:",
