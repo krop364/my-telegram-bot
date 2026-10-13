@@ -1005,6 +1005,49 @@ MAX_MANAGER_KEYBOARD = {
         ]
     }
 }
+def test_max_contact(manager_user_id, client_user_id):
+    url = f"{MAX_API_URL}/messages"
+
+    headers = {
+        "Authorization": MAX_BOT_TOKEN,
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "text": "🧪 Тест карточки контакта клиента",
+        "attachments": [
+            {
+                "type": "contact",
+                "payload": {
+                    "name": "Тестовый клиент",
+                    "contact_id": str(client_user_id)
+                }
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            params={"user_id": manager_user_id},
+            json=payload,
+            verify=MAX_CA_BUNDLE,
+            timeout=15
+        )
+
+        print(
+            "🧪 MAX CONTACT TEST:",
+            response.status_code,
+            response.text[:500],
+            flush=True
+        )
+
+        return response.ok
+
+    except Exception as e:
+        print("❌ MAX CONTACT TEST ERROR:", str(e), flush=True)
+        return False
 def send_max_message(
     user_id,
     text,
@@ -1160,7 +1203,9 @@ def send_max_request_to_manager(user_id, chat_id):
 
         return False, []
 def process_max_message(user_id, text, chat_id):
-
+    if text.strip() == "/testcontact":
+        test_max_contact(user_id, user_id)
+        return
     try:
         memory_id = f"max:{user_id}"
 
