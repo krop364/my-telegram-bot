@@ -1204,7 +1204,7 @@ def send_max_request_to_manager(user_id, chat_id):
         return False, []
 def process_max_message(user_id, text, chat_id):
     if text.strip() == "/testcontact":
-        test_max_contact(user_id, user_id)
+        test_max_contact(user_id, 454023029)
         return
     try:
         memory_id = f"max:{user_id}"
