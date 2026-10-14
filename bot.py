@@ -1195,34 +1195,14 @@ def send_max_request_to_manager(user_id, chat_id):
         
         manager_message = (
             "🔥 НОВАЯ ЗАЯВКА ИЗ MAX\n\n"
-            f"Контакт: https://web.max.ru/{chat_id}\n"
             f"{request_text}"
         )
 
-        # Отправляем менеджеру напрямую через Telegram Bot API
-        response = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={
-                "chat_id": MANAGER_CHAT_ID,
-                "text": manager_message
-            },
-            timeout=30
+        # Отправляем заявку и контакт клиента в группу MAX
+        send_max_group_message(
+            manager_message,
+            contact_user_id=user_id
         )
-
-        print(
-            "📨 Telegram: отправка MAX-заявки менеджеру:",
-            response.status_code,
-            flush=True
-        )
-
-        if not response.ok:
-            print(
-                "❌ Telegram API:",
-                response.text[:500],
-                flush=True
-            )
-
-        response.raise_for_status()
         save_manager_request(
             "max",
             user_id,
@@ -1230,7 +1210,7 @@ def send_max_request_to_manager(user_id, chat_id):
         )
         print(
             f"📩 MAX: заявка пользователя {user_id} "
-            f"отправлена менеджеру в Telegram",
+            f"отправлена в группу MAX",
             flush=True
         )
 
