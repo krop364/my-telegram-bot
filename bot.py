@@ -4,6 +4,10 @@ import threading
 import sqlite3
 import requests
 import hmac
+import hashlib
+import json
+import time
+from urllib.parse import parse_qsl
 
 from flask import Flask, request, jsonify, render_template
 from pyrogram import Client, filters
@@ -696,6 +700,105 @@ flask_app = Flask(__name__)
 @flask_app.route("/miniapp")
 def max_miniapp():
     return render_template("miniapp.html")
+def verify_max_miniapp_user(init_data):
+    if not MAX_BOT_TOKEN or not init_data:
+        return None
+
+    try:
+        pairs = parse_qsl(
+            init_data,
+            keep_blank_values=True,
+            strict_parsing=True
+        )
+
+        keys = [key for key, value in pairs]
+
+        if len(keys) != len(set(keys)):
+            return None
+
+        data = dict(pairs)
+        received_hash = data.pop("hash", None)
+
+        if not received_hash:
+            return None
+
+        auth_date = int(data.get("auth_date", "0"))
+
+        if abs(time.time() - auth_date) > 3600:
+            return None
+
+        check_string = "\n".join(
+            f"{key}={value}"
+            for key, value in sorted(data.items())
+        )
+
+        secret_key = hmac.new(
+            b"WebAppData",
+            MAX_BOT_TOKEN.encode("utf-8"),
+            hashlib.sha256
+        ).digest()
+
+        calculated_hash = hmac.new(
+            secret_key,
+            check_string.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(
+            calculated_hash,
+            received_hash
+        ):
+            return None
+
+        user = json.loads(data.get("user", "{}"))
+        user_id = int(user["id"])
+
+        if user_id <= 0:
+            return None
+
+        return user_id
+
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+        return None
+
+
+@flask_app.route("/miniapp/action", methods=["POST"])
+def max_miniapp_action():
+    data = request.get_json(silent=True) or {}
+
+    user_id = verify_max_miniapp_user(
+        data.get("init_data", "")
+    )
+
+    if not user_id:
+        return jsonify({
+            "ok": False,
+            "error": "Не удалось подтвердить пользователя MAX"
+        }), 401
+
+    actions = {
+        "abilities": "Что я умею",
+        "booking": "Как забронировать",
+        "ideas": "Идеи для отдыха",
+        "manager": "❗️ Отправить заявку менеджеру"
+    }
+
+    action = data.get("action")
+    text = actions.get(action)
+
+    if not text:
+        return jsonify({
+            "ok": False,
+            "error": "Неизвестная кнопка"
+        }), 400
+
+    threading.Thread(
+        target=process_max_message,
+        args=(user_id, text, None),
+        daemon=True
+    ).start()
+
+    return jsonify({"ok": True}), 200
 
 @flask_app.route("/")
 def home():
