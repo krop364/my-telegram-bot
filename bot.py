@@ -772,6 +772,10 @@ def max_webhook():
 
     text = (body.get("text") or "").strip()
     user_id = sender.get("user_id")
+    recipient = message.get("recipient") or {}
+
+    if recipient.get("chat_type") != "dialog":
+        return jsonify({"ok": True}), 200
     print(
         "🔎 MAX SENDER FIELDS:",
         list(sender.keys()),
@@ -1048,6 +1052,46 @@ def test_max_contact(manager_user_id, client_user_id):
     except Exception as e:
         print("❌ MAX CONTACT TEST ERROR:", str(e), flush=True)
         return False
+def send_max_group_message(text, contact_user_id=None):
+    chat_id = os.environ.get("MAX_MANAGER_CHAT_ID")
+
+    if not chat_id:
+        raise ValueError("MAX_MANAGER_CHAT_ID не задан")
+
+    data = {"text": text}
+
+    if contact_user_id is not None:
+        data["attachments"] = [
+            {
+                "type": "contact",
+                "payload": {
+                    "name": "Клиент MAX",
+                    "contact_id": str(contact_user_id)
+                }
+            }
+        ]
+
+    response = requests.post(
+        f"{MAX_API_URL}/messages",
+        headers={
+            "Authorization": MAX_BOT_TOKEN,
+            "Content-Type": "application/json"
+        },
+        params={"chat_id": chat_id},
+        json=data,
+        timeout=30,
+        verify=MAX_CA_BUNDLE
+    )
+
+    print(
+        "📨 MAX GROUP:",
+        response.status_code,
+        response.text[:300] if not response.ok else "OK",
+        flush=True
+    )
+
+    response.raise_for_status()
+    return response.json()
 def send_max_message(
     user_id,
     text,
@@ -1204,10 +1248,15 @@ def send_max_request_to_manager(user_id, chat_id):
         return False, []
 def process_max_message(user_id, text, chat_id):
     if text.strip() == "/testcontact":
-        test_max_contact(user_id, 454023029)
-        return
-    try:
-        memory_id = f"max:{user_id}"
+    send_max_group_message(
+        "🧪 Проверка отправки заявки в группу MAX",
+        contact_user_id=user_id
+    )
+    send_max_message(
+        user_id,
+        "✅ Тест отправлен в группу MAX."
+    )
+    return
 
         # ----------------------------------------------------
         # /START В MAX
