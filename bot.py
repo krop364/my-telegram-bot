@@ -776,17 +776,7 @@ def max_webhook():
 
     if recipient.get("chat_type") != "dialog":
         return jsonify({"ok": True}), 200
-    print(
-        "🔎 MAX SENDER FIELDS:",
-        list(sender.keys()),
-        flush=True
-    )
-    print(
-    "🔎 MAX IDS:",
-    "sender_user_id =", user_id,
-    "recipient =", message.get("recipient"),
-    flush=True
-    )    
+  
     chat_id = (message.get("recipient") or {}).get("chat_id")
     if not text or not user_id:
         return jsonify({"ok": True}), 200
@@ -1229,17 +1219,7 @@ def send_max_request_to_manager(user_id, chat_id):
 def process_max_message(user_id, text, chat_id):
 
     try:
-        if text.strip() == "/testcontact":
-            send_max_group_message(
-                "🧪 Проверка отправки заявки в группу MAX",
-                contact_user_id=user_id
-            )
-            send_max_message(
-                user_id,
-                "✅ Тест отправлен в группу MAX."
-            )
-            return
-
+       
         memory_id = f"max:{user_id}"
 
         # ----------------------------------------------------
