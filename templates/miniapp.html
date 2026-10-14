@@ -1,0 +1,54 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <title>ANEX — Меню путешествий</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 18px;
+      font-family: Arial, sans-serif;
+      background: #f4f6fb;
+      color: #263248;
+    }
+    h1 { font-size: 25px; margin-bottom: 8px; }
+    p { color: #667085; margin-bottom: 28px; }
+    .menu {
+      display: grid;
+      gap: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 20px;
+      border: 0;
+      border-radius: 16px;
+      background: white;
+      color: #263248;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: left;
+      box-shadow: 0 3px 12px #0000000a;
+      cursor: pointer;
+    }
+    button:active { background: #e7edff; }
+    .request { color: #e65b32; }
+  </style>
+</head>
+<body>
+  <h1>✈️ ANEX — Путешествия</h1>
+  <p>Чем мы можем вам помочь?</p>
+
+  <div class="menu">
+    <button>🤖 Что я умею</button>
+    <button>📋 Как забронировать</button>
+    <button>🌴 Идеи для отдыха</button>
+    <button class="request">
+      ❗ Отправить заявку менеджеру
+    </button>
+  </div>
+</body>
+</html>
