@@ -5,7 +5,7 @@ import sqlite3
 import requests
 import hmac
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from pyrogram import Client, filters
 from pyrogram.types import (
     ReplyKeyboardMarkup,
@@ -693,6 +693,9 @@ def save_manager_request(platform, user_id, request_text):
 
 flask_app = Flask(__name__)
 
+@flask_app.route("/miniapp")
+def max_miniapp():
+    return render_template("miniapp.html")
 
 @flask_app.route("/")
 def home():
