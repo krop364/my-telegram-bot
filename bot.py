@@ -1247,16 +1247,20 @@ def send_max_request_to_manager(user_id, chat_id):
 
         return False, []
 def process_max_message(user_id, text, chat_id):
-    if text.strip() == "/testcontact":
-        send_max_group_message(
-            "🧪 Проверка отправки заявки в группу MAX",
-            contact_user_id=user_id
-        )
-        send_max_message(
-            user_id,
-            "✅ Тест отправлен в группу MAX."
-        )
-        return
+
+    try:
+        if text.strip() == "/testcontact":
+            send_max_group_message(
+                "🧪 Проверка отправки заявки в группу MAX",
+                contact_user_id=user_id
+            )
+            send_max_message(
+                user_id,
+                "✅ Тест отправлен в группу MAX."
+            )
+            return
+
+        memory_id = f"max:{user_id}"
 
         # ----------------------------------------------------
         # /START В MAX
