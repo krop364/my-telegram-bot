@@ -37,18 +37,76 @@
     button:active { background: #e7edff; }
     .request { color: #e65b32; }
   </style>
+<script src="https://st.max.ru/js/max-web-app.js"></script>
 </head>
 <body>
   <h1>✈️ ANEX — Путешествия</h1>
   <p>Чем мы можем вам помочь?</p>
 
   <div class="menu">
-    <button>🤖 Что я умею</button>
-    <button>📋 Как забронировать</button>
-    <button>🌴 Идеи для отдыха</button>
-    <button class="request">
+    <button onclick="sendAction('abilities')">
+      🤖 Что я умею
+    </button>
+  
+    <button onclick="sendAction('booking')">
+      📋 Как забронировать
+    </button>
+  
+    <button onclick="sendAction('ideas')">
+      🌴 Идеи для отдыха
+    </button>
+  
+    <button class="request"
+            onclick="sendAction('manager')">
       ❗ Отправить заявку менеджеру
     </button>
   </div>
+<p id="status"></p>
+<script>
+  async function sendAction(action) {
+    const status = document.getElementById("status");
+    const buttons = document.querySelectorAll("button");
+
+    const initData = window.WebApp?.initData;
+
+    if (!initData) {
+      status.textContent =
+        "Откройте меню внутри приложения MAX.";
+      return;
+    }
+
+    buttons.forEach(button => button.disabled = true);
+    status.textContent = "⏳ Выполняем команду...";
+
+    try {
+      const response = await fetch("/miniapp/action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action: action,
+          init_data: initData
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.error || "Ошибка отправки команды"
+        );
+      }
+
+      status.textContent =
+        "✅ Команда принята! Вернитесь в чат с ботом.";
+
+    } catch (error) {
+      status.textContent = "❌ " + error.message;
+    } finally {
+      buttons.forEach(button => button.disabled = false);
+    }
+  }
+</script>
 </body>
 </html>
