@@ -18,6 +18,8 @@ from pyrogram.types import (
     InlineKeyboardButton
 )
 from openai import OpenAI
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 # ============================================================
@@ -172,6 +174,17 @@ SYSTEM_PROMPT = """
 «туда», «там», «этот», «первый», «подешевле», «на неделю», «а с ребенком?», «а что получше?».
 Если критически важной информации не хватает — задай короткий уточняющий вопрос.
 Если данных уже достаточно для полезной рекомендации — не продолжай задавать вопросы, а переходи к вариантам.
+
+ОПРЕДЕЛЕНИЕ ГОДА ПОЕЗДКИ
+Всегда учитывай текущую календарную дату.
+Если клиент указывает месяц поездки без года, автоматически выбирай ближайший будущий период.
+Например, если сейчас октябрь 2026 года:
+- «в апреле» — апрель 2027 года;
+- «в декабре» — декабрь 2026 года;
+- «в январе» — январь 2027 года.
+Не уточняй год, если он однозначно определяется по текущей дате.
+Не рассматривай прошедшие даты поездок.
+Если клиент явно указал прошедший год, сообщи об этом и предложи ближайший подходящий период.
 
 НАПРАВЛЕНИЯ
 
@@ -532,13 +545,35 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reminder_subscribers (
+            platform TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (platform, user_id)
+        )
+    """)
     connection.commit()
     connection.close()
 
     print("🗄️ База данных готова", flush=True)
 
+def save_reminder_subscriber(platform, user_id):
+    connection = sqlite3.connect(DATABASE_PATH)
+    cursor = connection.cursor()
 
+    cursor.execute(
+        """
+        INSERT OR IGNORE INTO reminder_subscribers
+        (platform, user_id)
+        VALUES (?, ?)
+        """,
+        (platform, str(user_id))
+    )
+
+    connection.commit()
+    connection.close()
 def save_message(user_id, role, content):
     user_id = str(user_id)
     connection = sqlite3.connect(DATABASE_PATH)
@@ -853,7 +888,7 @@ def max_webhook():
         )
 
         if user_id:
-
+            save_reminder_subscriber("max", user_id)
             send_max_message(
                 user_id,
                 "👋 Привет!\n\n"
@@ -1333,7 +1368,7 @@ def process_max_message(user_id, text, chat_id):
         # ----------------------------------------------------
 
         if text.strip().lower() == "/start":
-
+            save_reminder_subscriber("max", user_id)
             send_max_message(
                 user_id,
                 "👋 Привет!\n\n"
@@ -1569,7 +1604,15 @@ def ask_gpt(user_id, user_message):
         response = openai_client.responses.create(
             model="gpt-5-mini",
             input=[
-                {"role": "developer", "content": SYSTEM_PROMPT}
+                {
+                    "role": "developer",
+                    "content": (
+                        SYSTEM_PROMPT
+                        + "\n\nТекущая дата: "
+                        + datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
+                        + ". Используй её для определения года поездки."
+                    )
+                }
             ] + messages,
             tools=[
                 {
@@ -1989,7 +2032,7 @@ async def manager_request_button(client, message):
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
-
+    save_reminder_subscriber("telegram", message.from_user.id)
     user_id = message.from_user.id
 
     print(
