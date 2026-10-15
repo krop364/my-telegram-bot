@@ -1310,7 +1310,8 @@ def send_daily_reminders():
         f"📨 Рассылка: найдено получателей — {len(subscribers)}",
         flush=True
     )
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     telegram_client = Client(
         "reminder_bot",
         api_id=API_ID,
