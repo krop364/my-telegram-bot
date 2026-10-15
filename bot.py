@@ -555,14 +555,37 @@ def init_database():
             PRIMARY KEY (platform, user_id)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reminder_runs (
+            run_date TEXT PRIMARY KEY,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     connection.commit()
     connection.close()
 
     print("🗄️ База данных готова", flush=True)
 
-def save_reminder_subscriber(platform, user_id):
+def send_daily_reminders():
+    today = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y-%m-%d")
+
     connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
+
+    cursor.execute(
+        "INSERT OR IGNORE INTO reminder_runs (run_date) VALUES (?)",
+        (today,)
+    )
+
+    if cursor.rowcount == 0:
+        connection.close()
+        print(
+            f"⏭️ Рассылка за {today} уже запускалась. Повтор пропущен.",
+            flush=True
+        )
+        return
+
+    connection.commit()
 
     cursor.execute(
         """
