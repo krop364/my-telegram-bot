@@ -1310,49 +1310,36 @@ def send_daily_reminders():
         f"📨 Рассылка: найдено получателей — {len(subscribers)}",
         flush=True
     )
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    telegram_client = Client(
-        "reminder_bot",
-        api_id=API_ID,
-        api_hash=API_HASH,
-        bot_token=TELEGRAM_TOKEN
-    )
 
-    try:
-        with telegram_client:
-            for platform, user_id in subscribers:
-                try:
-                    if platform == "max":
-                        send_max_message(
-                            int(user_id),
-                            REMINDER_TEXT
-                        )
+    for platform, user_id in subscribers:
+        try:
+            if platform == "max":
+                send_max_message(
+                    int(user_id),
+                    REMINDER_TEXT
+                )
 
-                    elif platform == "telegram":
-                        telegram_client.send_message(
-                            int(user_id),
-                            REMINDER_TEXT
-                        )
+            elif platform == "telegram":
+                response = requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": int(user_id),
+                        "text": REMINDER_TEXT
+                    },
+                    timeout=30
+                )
+                response.raise_for_status()
 
-                    print(
-                        f"✅ Напоминание отправлено: {platform}, {user_id}",
-                        flush=True
-                    )
+            print(
+                f"✅ Напоминание отправлено: {platform}, {user_id}",
+                flush=True
+            )
 
-                except Exception as e:
-                    print(
-                        f"❌ Ошибка рассылки {platform}, {user_id}: {e}",
-                        flush=True
-                    )
-
-    except Exception as e:
-        print(
-            "❌ Ошибка запуска рассылки:",
-            type(e).__name__,
-            str(e),
-            flush=True
-        )
+        except Exception as e:
+            print(
+                f"❌ Ошибка рассылки {platform}, {user_id}: {e}",
+                flush=True
+            )
 # ============================================================
 # ОБРАБОТКА СООБЩЕНИЙ MAX
 # ============================================================
@@ -2206,7 +2193,7 @@ async def vacation_ideas(client, message):
 # СООБЩЕНИЯ ПОЛЬЗОВАТЕЛЯ
 # ============================================================
 
-@app.on_message(filters.text)
+@app.on_message(filters.private & filters.incoming & filters.text)
 async def chat_with_gpt(client, message):
     if str(message.chat.id) == str(MANAGER_CHAT_ID):
         return
