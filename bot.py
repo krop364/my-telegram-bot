@@ -34,6 +34,7 @@ MANAGER_CONTACT = os.environ.get("MANAGER_CONTACT")
 MANAGER_CHAT_ID = os.environ.get("MANAGER_CHAT_ID")
 MAX_BOT_TOKEN = os.environ.get("MAX_BOT_TOKEN")
 MAX_WEBHOOK_SECRET = os.environ.get("MAX_WEBHOOK_SECRET")
+REMINDER_CRON_SECRET = os.environ.get("REMINDER_CRON_SECRET")
 
 MAX_API_URL = "https://platform-api2.max.ru"
 MAX_ROOT_CERT = "Russian_Trusted_Root_CA.cer"
@@ -844,7 +845,24 @@ def home():
 def health():
     return "OK", 200
 
+@flask_app.route("/reminders/run", methods=["POST"])
+def run_reminders():
+    received_secret = request.headers.get(
+        "X-Reminder-Secret", ""
+    )
 
+    if not REMINDER_CRON_SECRET or not hmac.compare_digest(
+        received_secret,
+        REMINDER_CRON_SECRET
+    ):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    threading.Thread(
+        target=send_daily_reminders,
+        daemon=True
+    ).start()
+
+    return jsonify({"ok": True}), 202
 # ============================================================
 # WEBHOOK MAX
 # ============================================================
@@ -1267,7 +1285,73 @@ def send_max_message(
     response.raise_for_status()
 
     return response.json()
+REMINDER_TEXT = (
+    "✈️ Пора подумать о следующем путешествии! 🌴\n\n"
+    "Мечтаете о море, интересных экскурсиях или отдыхе всей семьёй?\n\n"
+    "Напишите мне, и я помогу выбрать направление, отель "
+    "и подходящие даты. 😊"
+)
 
+
+def send_daily_reminders():
+    connection = sqlite3.connect(DATABASE_PATH)
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT platform, user_id
+        FROM reminder_subscribers
+        WHERE is_active = 1
+    """)
+
+    subscribers = cursor.fetchall()
+    connection.close()
+
+    print(
+        f"📨 Рассылка: найдено получателей — {len(subscribers)}",
+        flush=True
+    )
+
+    telegram_client = Client(
+        "reminder_bot",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        bot_token=TELEGRAM_TOKEN
+    )
+
+    try:
+        with telegram_client:
+            for platform, user_id in subscribers:
+                try:
+                    if platform == "max":
+                        send_max_message(
+                            int(user_id),
+                            REMINDER_TEXT
+                        )
+
+                    elif platform == "telegram":
+                        telegram_client.send_message(
+                            int(user_id),
+                            REMINDER_TEXT
+                        )
+
+                    print(
+                        f"✅ Напоминание отправлено: {platform}, {user_id}",
+                        flush=True
+                    )
+
+                except Exception as e:
+                    print(
+                        f"❌ Ошибка рассылки {platform}, {user_id}: {e}",
+                        flush=True
+                    )
+
+    except Exception as e:
+        print(
+            "❌ Ошибка запуска рассылки:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
 # ============================================================
 # ОБРАБОТКА СООБЩЕНИЙ MAX
 # ============================================================
