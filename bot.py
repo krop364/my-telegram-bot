@@ -566,26 +566,9 @@ def init_database():
 
     print("🗄️ База данных готова", flush=True)
 
-def send_daily_reminders():
-    today = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y-%m-%d")
-
+def save_reminder_subscriber(platform, user_id):
     connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
-
-    cursor.execute(
-        "INSERT OR IGNORE INTO reminder_runs (run_date) VALUES (?)",
-        (today,)
-    )
-
-    if cursor.rowcount == 0:
-        connection.close()
-        print(
-            f"⏭️ Рассылка за {today} уже запускалась. Повтор пропущен.",
-            flush=True
-        )
-        return
-
-    connection.commit()
 
     cursor.execute(
         """
@@ -1317,9 +1300,25 @@ REMINDER_TEXT = (
 
 
 def send_daily_reminders():
+    today = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y-%m-%d")
+
     connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
 
+    cursor.execute(
+        "INSERT OR IGNORE INTO reminder_runs (run_date) VALUES (?)",
+        (today,)
+    )
+
+    if cursor.rowcount == 0:
+        connection.close()
+        print(
+            f"⏭️ Рассылка за {today} уже запускалась. Повтор пропущен.",
+            flush=True
+        )
+        return
+
+    connection.commit()
     cursor.execute("""
         SELECT platform, user_id
         FROM reminder_subscribers
