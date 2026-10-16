@@ -1822,7 +1822,7 @@ def create_manager_request(user_id, first_name, username):
     contact = (
         f"@{username}"
         if username
-        else "не указан"
+        else f"Telegram ID: {user_id}"
     )
 
     extraction_prompt = f"""
@@ -1834,8 +1834,6 @@ def create_manager_request(user_id, first_name, username):
 
 Верни заявку СТРОГО в следующем формате:
 
-Имя: {first_name}
-Контакт: {contact}
 Вылет: ...
 Страна: ...
 Даты: ...
@@ -1872,7 +1870,19 @@ def create_manager_request(user_id, first_name, username):
         ]
     )
 
-    return response.output_text.strip()
+    travel_details = response.output_text.strip()
+
+    travel_details = "\n".join(
+        line
+        for line in travel_details.splitlines()
+        if not line.startswith(("Имя:", "Контакт:"))
+    ).strip()
+
+    return (
+        f"Имя: {first_name}\n"
+        f"Контакт: {contact}\n"
+        f"{travel_details}"
+    )
 
 # ============================================================
 # НАЖАТИЕ КНОПКИ "ОТПРАВИТЬ ЗАЯВКУ МЕНЕДЖЕРУ"
