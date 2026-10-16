@@ -1614,6 +1614,27 @@ app = Client(
     api_hash=API_HASH,
     bot_token=TELEGRAM_TOKEN
 )
+def send_telegram_manager_message(text):
+    response = requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        json={
+            "chat_id": MANAGER_CHAT_ID,
+            "text": text
+        },
+        timeout=30
+    )
+
+    if not response.ok:
+        print(
+            "❌ Telegram Bot API:",
+            response.status_code,
+            response.text[:500],
+            flush=True
+        )
+
+    response.raise_for_status()
+
+    result = response.json()
 # ============================================================
 # ГЛАВНОЕ МЕНЮ
 # ============================================================
@@ -1916,9 +1937,9 @@ async def send_to_manager(client, callback_query):
             f"{request_text}"
         )
 
-        await client.send_message(
-            chat_id=MANAGER_CHAT_ID,
-            text=manager_message
+        await asyncio.to_thread(
+            send_telegram_manager_message,
+            manager_message
         )
 
         # ----------------------------------------------------
@@ -2080,9 +2101,9 @@ async def manager_request_button(client, message):
             f"{request_text}"
         )
 
-        await client.send_message(
-            chat_id=MANAGER_CHAT_ID,
-            text=manager_message
+        await asyncio.to_thread(
+            send_telegram_manager_message,
+            manager_message
         )
 
         await message.reply(
