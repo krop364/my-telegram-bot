@@ -79,23 +79,6 @@ if not MANAGER_CHAT_ID:
     raise ValueError("❌ MANAGER_CHAT_ID не найден")
 
 MANAGER_CHAT_ID = int(MANAGER_CHAT_ID)
-#ALLOWED_DOMAINS = [
-#    "anextour.ru",
-#    "biblioglobus.ru",
-#    "coral.ru",
-#    "fstravel.com",
-#    "letsfly.travel",
-#    "loti.ru",
-#    "paks.ru",
-#    "pegast.ru",
-#    "r-express.ru",
-#    "space-travel.ru",
-#    "sunmar.ru",
-#    "travelata.ru",
-#    "art-tour.ru",
-#    "intourist.ru",
-#]
-
 
 # ============================================================
 # ПРОВЕРКА НАСТРОЕК
@@ -331,7 +314,6 @@ pegast.ru
 r-express.ru
 space-travel.ru
 sunmar.ru
-travelata.ru
 arttour.ru
 intourist.ru
 ambotis.ru
@@ -1725,7 +1707,6 @@ def ask_gpt(user_id, user_message):
                             "r-express.ru",
                             "space-travel.ru",
                             "sunmar.ru",
-                            "travelata.ru",
                             "arttour.ru",
                             "intourist.ru",
                             "ambotis.ru",
