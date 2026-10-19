@@ -1740,7 +1740,50 @@ manager_keyboard = InlineKeyboardMarkup(
 # ============================================================
 # OPENAI
 # ============================================================
+def test_coral_price():
+    import re
 
+    url = "https://www.coral.ru/hotels/turkey/aqi-pegasos-resort-hotel-alanya/?qp=3mXCNsoTYgYvGGFvTswFg8nZpPPHuxHlFMZovCKFb7GxGukscZHSYCYee%2BOnEmb28aeGO635XT1yODo2v1htifthyKtcpp4AetOsvYQDHeu6hVB%2BzYQE6YXQj7YuBfAtsQLvHQu148YR2cLxmC8vfx2iRIOZb4mpkmpbKUMfOBj%2BjixfxPjPQPCvSngheHv056ZAzgujLy8FTmeMTPzpYqUXsPnEJ%2FrS70ZDGN1uQeE8JFKQfa3gWpOmiVtVwrRFf%2BmpDI8yWU5oEvnb65%2FWGPbDamf1j2NUWXJYmqRg1eAQXxtZEXTD1DO75%2F9nbWsLDSW8Bzl6INwaE39B2lSvvOO43fMRM5YSyU%2FSQKATLPXg%2FywC2vuRsNZtpOHkBRFq9k7mnk3PmRTTpFI21I0hU37YokjAH1KTzyse80BYz40%3D&p=1&w=0&s=0&ws=10#hotelDetailSelectRoom"
+
+    try:
+        response = requests.get(
+            url,
+            timeout=30,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
+
+        print(
+            "🧪 CORAL TEST: HTTP",
+            response.status_code,
+            flush=True
+        )
+
+        print(
+            "🧪 CORAL TEST: размер HTML",
+            len(response.content),
+            flush=True
+        )
+
+        match = re.search(
+            r'"amount"\s*:\s*181572[.,]25',
+            response.text
+        )
+
+        print(
+            "🧪 CORAL TEST: цена найдена =",
+            bool(match),
+            flush=True
+        )
+
+    except Exception as e:
+        print(
+            "❌ CORAL TEST:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2389,7 +2432,7 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    
+    test_coral_price()
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
    
