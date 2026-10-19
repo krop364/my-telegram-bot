@@ -1751,6 +1751,7 @@ def ask_gpt(user_id, user_message):
             "role": "user",
             "content": user_message
         }
+    ]
         price_keywords = [
         "цена",
         "цену",
@@ -1772,7 +1773,7 @@ def ask_gpt(user_id, user_message):
         keyword in user_message.lower()
         for keyword in price_keywords
     )
-    ]
+    
     try:
         response = openai_client.responses.create(
             model="gpt-5-mini",
