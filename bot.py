@@ -1752,7 +1752,7 @@ def ask_gpt(user_id, user_message):
             "content": user_message
         }
     ]
-        price_keywords = [
+    price_keywords = [
         "цена",
         "цену",
         "цены",
