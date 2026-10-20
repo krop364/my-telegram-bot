@@ -1829,7 +1829,25 @@ def test_coral_price():
             response.text[:500].replace("\n", " "),
             flush=True
         )
+        # Выводим текст страницы без HTML-тегов
+        from html import unescape
 
+        page_text = re.sub(
+            r"<(script|style)\b[^>]*>.*?</\1>",
+            " ",
+            response.text,
+            flags=re.IGNORECASE | re.DOTALL
+        )
+
+        page_text = re.sub(r"<[^>]+>", " ", page_text)
+        page_text = unescape(page_text)
+        page_text = " ".join(page_text.split())
+
+        print(
+            "🧪 CORAL TEST: текст страницы =",
+            page_text[:1200],
+            flush=True
+        )
         match = re.search(
             r'"amount"\s*:\s*181572[.,]25',
             response.text
