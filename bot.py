@@ -1851,7 +1851,43 @@ def test_anex_api():
                 type(data).__name__,
                 flush=True
             )
+            if isinstance(data, list):
+                print(
+                    "🧪 ANEX API: количество элементов =",
+                    len(data),
+                    flush=True
+                )
 
+                if data:
+                    first = data[0]
+
+                    print(
+                        "🧪 ANEX API: тип первого элемента =",
+                        type(first).__name__,
+                        flush=True
+                    )
+
+                    if isinstance(first, dict):
+                        print(
+                            "🧪 ANEX API: поля первого элемента =",
+                            list(first.keys()),
+                            flush=True
+                        )
+
+                        for key in (
+                            "converted_price",
+                            "additional_price",
+                            "price",
+                            "hotelCheckIn",
+                            "hotelCheckOut",
+                            "result"
+                        ):
+                            if key in first:
+                                print(
+                                    f"🧪 ANEX API: {key} =",
+                                    first[key],
+                                    flush=True
+                                )
             if isinstance(data, dict):
                 print(
                     "🧪 ANEX API: поля JSON =",
