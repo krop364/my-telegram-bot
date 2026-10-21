@@ -1854,6 +1854,52 @@ def test_anex_page():
 
     except Exception as e:
         print("❌ ANEX TEST:", type(e).__name__, str(e), flush=True)
+def test_anex_api():
+    import requests
+
+    url = "https://api.anextour.ru/search"
+
+    try:
+        response = requests.get(
+            url,
+            timeout=20,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json"
+            }
+        )
+
+        print(
+            "🧪 ANEX API: HTTP =",
+            response.status_code,
+            flush=True
+        )
+
+        print(
+            "🧪 ANEX API: размер ответа =",
+            len(response.content),
+            flush=True
+        )
+
+        print(
+            "🧪 ANEX API: тип ответа =",
+            response.headers.get("Content-Type"),
+            flush=True
+        )
+
+        print(
+            "🧪 ANEX API: начало ответа =",
+            response.text[:300].replace("\n", " "),
+            flush=True
+        )
+
+    except Exception as e:
+        print(
+            "❌ ANEX API:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2502,7 +2548,7 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    test_anex_page()
+    test_anex_api()
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
    
