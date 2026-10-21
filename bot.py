@@ -1785,84 +1785,40 @@ def test_coral_price():
             flush=True
         )
 
-def test_anex_page():
-    import requests
-    import re
-    from html import unescape
 
-    url = "https://anextour.ru/tours/turkey/ares-dream-hotel?ADULT=2&CHILD=0&COSTMAX=&COSTMIN=&CURRENCY=1&PARTITION_PRICE=&PRICE_PAGE=1&RECONPAGE=500&REGULAR=True&SORT_TYPE=0&STATEINC=3&THE_BEST_AT_TOP=True&TOWNFROM=moskva&CHARTER=True&FILTER=1&FREIGHT=1&AGES=&NIGHTMAX=7&NIGHTMIN=7&CHECKIN_BEG=20261022&CHECKIN_END=20261022"
+def test_anex_api():
+    import requests
+
+    url = (
+        "https://api.anextour.ru/search"
+        "?SEARCH_MODE=b2c"
+        "&ADULT=2"
+        "&CHECKIN_BEG=20261022"
+        "&CHECKIN_END=20261022"
+        "&CHILD=0"
+        "&COSTMAX="
+        "&COSTMIN="
+        "&HOTELLIST=19089"
+        "&NIGHTMAX=7"
+        "&NIGHTMIN=7"
+        "&STATE=turkey"
+        "&TOWNFROM=moskva"
+        "&CURRENCY=1"
+        "&FILTER=1"
+        "&FREIGHT=1"
+        "&PARTITION_PRICE=2"
+        "&PRICE_PAGE=1"
+        "&RECONPAGE=200"
+        "&REGULAR=True"
+        "&CHARTER=True"
+        "&SORT_TYPE=0"
+        "&SEARCH_TYPE=PACKET_TOUR"
+    )
 
     try:
         response = requests.get(
             url,
             timeout=30,
-            headers={"User-Agent": "Mozilla/5.0"}
-        )
-
-        page_text = re.sub(
-            r"<(script|style)\b[^>]*>.*?</\1>",
-            " ",
-            response.text,
-            flags=re.IGNORECASE | re.DOTALL
-        )
-        page_text = re.sub(r"<[^>]+>", " ", page_text)
-        page_text = " ".join(unescape(page_text).split())
-
-        print("🧪 ANEX TEST: HTTP =", response.status_code, flush=True)
-        print("🧪 ANEX TEST: размер HTML =", len(response.content), flush=True)
-        print("🧪 ANEX TEST: адрес =", response.url.split("?")[0], flush=True)
-        print("🧪 ANEX TEST: текст =", page_text[:700], flush=True)
-        price_patterns = {
-            "price": r'"price"\s*:',
-            "amount": r'"amount"\s*:',
-            "RUB": r'"RUB"',
-            "₽": r"₽",
-            "offers": r'"offers"\s*:',
-        }
-
-        for name, pattern in price_patterns.items():
-            matches = re.findall(
-                pattern,
-                response.text,
-                flags=re.IGNORECASE
-            )
-
-            print(
-                f"🧪 ANEX TEST: {name} = {len(matches)}",
-                flush=True
-            )
-        # Смотрим контекст полей price в HTML
-        for i, match in enumerate(
-            re.finditer(
-                r'"price"\s*:',
-                response.text,
-                flags=re.IGNORECASE
-            ),
-            start=1
-        ):
-            start = max(0, match.start() - 120)
-            end = min(len(response.text), match.end() + 250)
-
-            fragment = response.text[start:end]
-            fragment = fragment.replace("\n", " ")
-
-            print(
-                f"🧪 ANEX TEST: price #{i} =",
-                fragment,
-                flush=True
-            )
-
-    except Exception as e:
-        print("❌ ANEX TEST:", type(e).__name__, str(e), flush=True)
-def test_anex_api():
-    import requests
-
-    url = "https://api.anextour.ru/search"
-
-    try:
-        response = requests.get(
-            url,
-            timeout=20,
             headers={
                 "User-Agent": "Mozilla/5.0",
                 "Accept": "application/json"
@@ -1887,11 +1843,40 @@ def test_anex_api():
             flush=True
         )
 
-        print(
-            "🧪 ANEX API: начало ответа =",
-            response.text[:300].replace("\n", " "),
-            flush=True
-        )
+        try:
+            data = response.json()
+
+            print(
+                "🧪 ANEX API: тип JSON =",
+                type(data).__name__,
+                flush=True
+            )
+
+            if isinstance(data, dict):
+                print(
+                    "🧪 ANEX API: поля JSON =",
+                    list(data.keys())[:20],
+                    flush=True
+                )
+
+                result = data.get("result")
+
+                if isinstance(result, dict):
+                    print(
+                        "🧪 ANEX API: результат поиска =",
+                        {
+                            "countTotal": result.get("countTotal"),
+                            "minPrice": result.get("minPrice"),
+                            "maxPrice": result.get("maxPrice")
+                        },
+                        flush=True
+                    )
+
+        except ValueError:
+            print(
+                "🧪 ANEX API: ответ не является JSON",
+                flush=True
+            )
 
     except Exception as e:
         print(
