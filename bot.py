@@ -1812,6 +1812,25 @@ def test_anex_page():
         print("🧪 ANEX TEST: размер HTML =", len(response.content), flush=True)
         print("🧪 ANEX TEST: адрес =", response.url.split("?")[0], flush=True)
         print("🧪 ANEX TEST: текст =", page_text[:700], flush=True)
+        price_patterns = {
+            "price": r'"price"\s*:',
+            "amount": r'"amount"\s*:',
+            "RUB": r'"RUB"',
+            "₽": r"₽",
+            "offers": r'"offers"\s*:',
+        }
+
+        for name, pattern in price_patterns.items():
+            matches = re.findall(
+                pattern,
+                response.text,
+                flags=re.IGNORECASE
+            )
+
+            print(
+                f"🧪 ANEX TEST: {name} = {len(matches)}",
+                flush=True
+            )
 
     except Exception as e:
         print("❌ ANEX TEST:", type(e).__name__, str(e), flush=True)
