@@ -1831,6 +1831,26 @@ def test_anex_page():
                 f"🧪 ANEX TEST: {name} = {len(matches)}",
                 flush=True
             )
+        # Смотрим контекст полей price в HTML
+        for i, match in enumerate(
+            re.finditer(
+                r'"price"\s*:',
+                response.text,
+                flags=re.IGNORECASE
+            ),
+            start=1
+        ):
+            start = max(0, match.start() - 120)
+            end = min(len(response.text), match.end() + 250)
+
+            fragment = response.text[start:end]
+            fragment = fragment.replace("\n", " ")
+
+            print(
+                f"🧪 ANEX TEST: price #{i} =",
+                fragment,
+                flush=True
+            )
 
     except Exception as e:
         print("❌ ANEX TEST:", type(e).__name__, str(e), flush=True)
