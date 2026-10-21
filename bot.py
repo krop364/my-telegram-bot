@@ -1785,52 +1785,19 @@ def test_coral_price():
             flush=True
         )
 
-def test_coral_price():
-    import re
+def test_anex_page():
     import requests
+    import re
+    from html import unescape
 
-    url = "https://www.coral.ru/hotels/turkey/aqi-pegasos-resort-hotel-alanya/?qp=3mXCNsoTYgYvGGFvTswFg8nZpPPHuxHlFMZovCKFb7GxGukscZHSYCYee%2BOnEmb28aeGO635XT1yODo2v1htifthyKtcpp4AetOsvYQDHeu6hVB%2BzYQE6YXQj7YuBfAtsQLvHQu148YR2cLxmC8vfx2iRIOZb4mpkmpbKUMfOBj%2BjixfxPjPQPCvSngheHv056ZAzgujLy8FTmeMTPzpYqUXsPnEJ%2FrS70ZDGN1uQeE8JFKQfa3gWpOmiVtVwrRFf%2BmpDI8yWU5oEvnb65%2FWGPbDamf1j2NUWXJYmqRg1eAQXxtZEXTD1DO75%2F9nbWsLDSW8Bzl6INwaE39B2lSvvOO43fMRM5YSyU%2FSQKATLPXg%2FywC2vuRsNZtpOHkBRFq9k7mnk3PmRTTpFI21I0hU37YokjAH1KTzyse80BYz40%3D&p=1&w=0&s=0&ws=10#hotelDetailSelectRoom"
+    url = "https://anextour.ru/tours/turkey/ares-dream-hotel?ADULT=2&CHILD=0&COSTMAX=&COSTMIN=&CURRENCY=1&PARTITION_PRICE=&PRICE_PAGE=1&RECONPAGE=500&REGULAR=True&SORT_TYPE=0&STATEINC=3&THE_BEST_AT_TOP=True&TOWNFROM=moskva&CHARTER=True&FILTER=1&FREIGHT=1&AGES=&NIGHTMAX=7&NIGHTMIN=7&CHECKIN_BEG=20261022&CHECKIN_END=20261022"
 
     try:
         response = requests.get(
             url,
             timeout=30,
-            headers={
-                "User-Agent": "Mozilla/5.0"
-            }
+            headers={"User-Agent": "Mozilla/5.0"}
         )
-
-        print(
-            "🧪 CORAL TEST: HTTP =",
-            response.status_code,
-            flush=True
-        )
-
-        print(
-            "🧪 CORAL TEST: размер HTML =",
-            len(response.content),
-            flush=True
-        )
-
-        print(
-            "🧪 CORAL TEST: конечный адрес =",
-            response.url.split("?")[0].split("#")[0],
-            flush=True
-        )
-
-        print(
-            "🧪 CORAL TEST: тип содержимого =",
-            response.headers.get("Content-Type"),
-            flush=True
-        )
-
-        print(
-            "🧪 CORAL TEST: начало ответа =",
-            response.text[:500].replace("\n", " "),
-            flush=True
-        )
-        # Выводим текст страницы без HTML-тегов
-        from html import unescape
 
         page_text = re.sub(
             r"<(script|style)\b[^>]*>.*?</\1>",
@@ -1838,34 +1805,16 @@ def test_coral_price():
             response.text,
             flags=re.IGNORECASE | re.DOTALL
         )
-
         page_text = re.sub(r"<[^>]+>", " ", page_text)
-        page_text = unescape(page_text)
-        page_text = " ".join(page_text.split())
+        page_text = " ".join(unescape(page_text).split())
 
-        print(
-            "🧪 CORAL TEST: текст страницы =",
-            page_text[:1200],
-            flush=True
-        )
-        match = re.search(
-            r'"amount"\s*:\s*181572[.,]25',
-            response.text
-        )
-
-        print(
-            "🧪 CORAL TEST: цена найдена =",
-            bool(match),
-            flush=True
-        )
+        print("🧪 ANEX TEST: HTTP =", response.status_code, flush=True)
+        print("🧪 ANEX TEST: размер HTML =", len(response.content), flush=True)
+        print("🧪 ANEX TEST: адрес =", response.url.split("?")[0], flush=True)
+        print("🧪 ANEX TEST: текст =", page_text[:700], flush=True)
 
     except Exception as e:
-        print(
-            "❌ CORAL TEST:",
-            type(e).__name__,
-            str(e),
-            flush=True
-        )
+        print("❌ ANEX TEST:", type(e).__name__, str(e), flush=True)
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2514,7 +2463,7 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    test_coral_price()
+    test_anex_page()
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
    
