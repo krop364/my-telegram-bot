@@ -1874,6 +1874,26 @@ def test_anex_api():
                             len(prices),
                             flush=True
                         )
+                        print(
+                            "🧪 ANEX: ПЕРВЫЕ 5 ТУРОВ",
+                            flush=True
+                        )
+
+                        for i, tour in enumerate(prices[:5], start=1):
+                            if not isinstance(tour, dict):
+                                continue
+
+                            print(
+                                f"🧪 ANEX ТУР {i}:",
+                                "Отель =", tour.get("hotelName"),
+                                "| Звёзды =", tour.get("starName"),
+                                "| Номер =", tour.get("roomName"),
+                                "| Питание =", tour.get("mealName"),
+                                "| Цена =", tour.get("additional_price"),
+                                "| Валюта =", tour.get("currencyAlias"),
+                                "| Дата =", tour.get("hotelCheckIn"),
+                                flush=True
+                            )
 
                         if prices and isinstance(prices[0], dict):
                             offer = prices[0]
