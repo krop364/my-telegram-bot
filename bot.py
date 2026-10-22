@@ -2042,7 +2042,14 @@ def test_biblio_page():
         print("🧪 BIBLIO: туры =", html.lower().count("туры"), flush=True)
         print("🧪 BIBLIO: рубли =", html.count("руб"), flush=True)
         print("🧪 BIBLIO: начало =", html[:300].replace("\n", " "), flush=True)
-
+        for word in ["search", "price", "api", "json", "tour", "iframe", "script"]:
+            print(
+                "🧪 BIBLIO:",
+                word,
+                "=",
+                html.lower().count(word),
+                flush=True
+            )
     except Exception as e:
         print("❌ BIBLIO:", type(e).__name__, str(e), flush=True)
 def ask_gpt(user_id, user_message):
