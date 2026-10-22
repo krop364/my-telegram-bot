@@ -2025,7 +2025,19 @@ def test_anex_api():
 def test_biblio_page():
     import requests
 
-    url = "https://www.bgoperator.ru/"
+    url = (
+        "https://www.bgoperator.ru/price.shtml"
+        "?action=price"
+        "&tid=211"
+        "&flt2=100510000863"
+        "&bfr=1"
+        "&id_price=121110183696"
+        "&data=22.10.2026"
+        "&d2=22.10.2026"
+        "&f7=8"
+        "&F4=102625354855"
+        "&flt=100411293179"
+    )
 
     try:
         response = requests.get(
