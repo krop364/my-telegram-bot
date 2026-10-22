@@ -1977,6 +1977,248 @@ def test_biblio_page():
             )
     except Exception as e:
         print("❌ BIBLIO:", type(e).__name__, str(e), flush=True)
+
+# ============================================================
+# ПОИСК ПАКЕТНЫХ ТУРОВ ANEX
+# ============================================================
+
+def search_anex_tours(
+    departure_city,
+    country,
+    departure_date,
+    nights,
+    adults,
+    children=0,
+    limit=5
+):
+    from datetime import date
+
+    cities = {
+        "москва": "moskva"
+    }
+
+    countries = {
+        "турция": "turkey"
+    }
+
+    city_code = cities.get(departure_city.lower())
+    country_code = countries.get(country.lower())
+
+    if not city_code or not country_code:
+        return []
+
+    travel_date = date.fromisoformat(departure_date)
+
+    if travel_date < date.today():
+        return []
+
+    params = {
+        "SEARCH_MODE": "b2c",
+        "ADULT": adults,
+        "CHECKIN_BEG": travel_date.strftime("%Y%m%d"),
+        "CHECKIN_END": travel_date.strftime("%Y%m%d"),
+        "CHILD": children,
+        "COSTMAX": "",
+        "COSTMIN": "",
+        "HOTELLIST": "",
+        "NIGHTMAX": nights,
+        "NIGHTMIN": nights,
+        "STATE": country_code,
+        "TOWNFROM": city_code,
+        "CURRENCY": 1,
+        "FILTER": 1,
+        "FREIGHT": 1,
+        "PARTITION_PRICE": 2,
+        "PRICE_PAGE": 1,
+        "RECONPAGE": 200,
+        "REGULAR": "False",
+        "CHARTER": "True",
+        "SORT_TYPE": 0,
+        "SEARCH_TYPE": "PACKET_TOUR"
+    }
+
+    try:
+        response = requests.get(
+            "https://api.anextour.ru/search",
+            params=params,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json"
+            },
+            timeout=30
+        )
+
+        response.raise_for_status()
+        data = response.json()
+
+        if not isinstance(data, list) or not data:
+            return []
+
+        prices = data[0].get("prices", [])
+
+        if not isinstance(prices, list):
+            return []
+
+        cheapest_by_hotel = {}
+
+        for tour in prices:
+            if not isinstance(tour, dict):
+                continue
+
+            try:
+                checkin = str(tour.get("checkIn", ""))[:10]
+                tour_nights = int(tour.get("nights", 0))
+                tour_adults = int(tour.get("adult", 0))
+                tour_children = int(tour.get("child", 0))
+                price = float(tour.get("additional_price") or 0)
+            except (ValueError, TypeError):
+                continue
+
+            if checkin != departure_date:
+                continue
+
+            if tour_nights != nights:
+                continue
+
+            if tour_adults != adults:
+                continue
+
+            if tour_children != children:
+                continue
+
+            if price <= 0:
+                continue
+
+            if tour.get("enable") is False:
+                continue
+
+            hotel = str(tour.get("hotelName") or "").strip()
+
+            if not hotel:
+                continue
+
+            item = {
+                "operator": "ANEX",
+                "hotel": hotel,
+                "stars": str(tour.get("starName") or ""),
+                "room": str(tour.get("roomName") or ""),
+                "meal": str(tour.get("mealName") or ""),
+                "date": checkin,
+                "nights": nights,
+                "adults": adults,
+                "children": children,
+                "price_rub": round(price),
+                "flight_type": "Не подтверждён",
+                "source": "https://anextour.ru/"
+            }
+
+            hotel_key = hotel.casefold()
+
+            previous = cheapest_by_hotel.get(hotel_key)
+
+            if previous is None or price < previous["price_rub"]:
+                cheapest_by_hotel[hotel_key] = item
+
+        result = sorted(
+            cheapest_by_hotel.values(),
+            key=lambda item: item["price_rub"]
+        )[:limit]
+
+        print(
+            "🏖️ ANEX: найдено разных отелей =",
+            len(cheapest_by_hotel),
+            "| передано GPT =",
+            len(result),
+            flush=True
+        )
+
+        return result
+
+    except Exception as e:
+        print(
+            "❌ ANEX SEARCH:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
+        return []
+
+
+def extract_anex_test_parameters(text):
+    """
+    Первая безопасная версия распознавания:
+    Москва, Турция, точная дата, ночи, взрослые без детей.
+    """
+    import re
+    from datetime import date, datetime
+
+    message = text.lower().replace("ё", "е")
+
+    if "москв" not in message:
+        return None
+
+    if "турц" not in message:
+        return None
+
+    if re.search(r"\b(ребенок|ребенка|дети|детей|детьми)\b", message):
+        return None
+
+    date_match = re.search(
+        r"\b(\d{1,2})[./](\d{1,2})(?:[./](\d{4}))?\b",
+        message
+    )
+
+    if not date_match:
+        return None
+
+    day = int(date_match.group(1))
+    month = int(date_match.group(2))
+    year = (
+        int(date_match.group(3))
+        if date_match.group(3)
+        else date.today().year
+    )
+
+    try:
+        travel_date = date(year, month, day)
+
+        if not date_match.group(3) and travel_date < date.today():
+            travel_date = date(year + 1, month, day)
+
+    except ValueError:
+        return None
+
+    nights_match = re.search(
+        r"(\d{1,2})\s*ноч(?:ь|и|ей)",
+        message
+    )
+
+    adults_match = re.search(
+        r"(\d+)\s*взросл",
+        message
+    )
+
+    if not nights_match or not adults_match:
+        return None
+
+    nights = int(nights_match.group(1))
+    adults = int(adults_match.group(1))
+
+    if not 1 <= nights <= 30:
+        return None
+
+    if not 1 <= adults <= 10:
+        return None
+
+    return {
+        "departure_city": "москва",
+        "country": "турция",
+        "departure_date": travel_date.isoformat(),
+        "nights": nights,
+        "adults": adults,
+        "children": 0
+    }
+
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2009,7 +2251,52 @@ def ask_gpt(user_id, user_message):
         keyword in user_message.lower()
         for keyword in price_keywords
     )
-    
+
+    anex_context = ""
+
+    if is_price_request:
+        anex_params = extract_anex_test_parameters(user_message)
+
+        if anex_params:
+            anex_tours = search_anex_tours(**anex_params)
+
+            if anex_tours:
+                anex_context = (
+                    "\n\nПРОВЕРЕННЫЕ ДАННЫЕ ПОИСКА ANEX:\n"
+                    + json.dumps(
+                        anex_tours,
+                        ensure_ascii=False,
+                        indent=2
+                    )
+                    + "\n\nЭто цены, полученные Python из поиска ANEX."
+                    + "\nПоказывай только соответствующие запросу предложения."
+                    + "\nНе изменяй цены, даты, номера и питание."
+                    + "\nТип рейса не подтвержден, не называй его чартером."
+                    + "\nНе утверждай, что наличие и окончательная цена бронирования подтверждены."
+                    + "\nСсылка source ведет на главную страницу, а не на конкретный тур."
+                    + "\nСообщи, что цена требует подтверждения перед бронированием."
+                    + "\nНе заменяй эти результаты приблизительными ценами из web search."
+                )
+```
+
+Теперь найди ниже:
+
+```python
+                        SYSTEM_PROMPT
+                        + "\n\nТекущая дата: "
+                        + datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
+                        + ". Используй её для определения года поездки."
+```
+
+Замени на:
+
+<CodeBlock language="python" editable>
+                        SYSTEM_PROMPT
+                        + "\n\nТекущая дата: "
+                        + datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
+                        + ". Используй её для определения года поездки."
+                        + anex_context
+ 
     try:
         response = openai_client.responses.create(
             model="gpt-5-mini",
@@ -2625,7 +2912,7 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    test_anex_api()
+
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
    
