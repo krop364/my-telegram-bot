@@ -2054,6 +2054,23 @@ def test_biblio_page():
         print("🧪 BIBLIO: туры =", html.lower().count("туры"), flush=True)
         print("🧪 BIBLIO: рубли =", html.count("руб"), flush=True)
         print("🧪 BIBLIO: начало =", html[:300].replace("\n", " "), flush=True)
+        import re
+
+        for price in ["151687", "170476", "152081"]:
+            found = bool(re.search(
+                r"\b" + r"\s*".join(price) + r"\b",
+                html
+            ))
+            print("💰 BIBLIO:", price, "=", found, flush=True)
+
+        for word in ["Siesta", "Beach Apart", "STUDIO ROOM"]:
+            print(
+                "🏨 BIBLIO:",
+                word,
+                "=",
+                word.lower() in html.lower(),
+                flush=True
+            )
         for word in ["search", "price", "api", "json", "tour", "iframe", "script"]:
             print(
                 "🧪 BIBLIO:",
