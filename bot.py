@@ -1794,7 +1794,7 @@ def test_anex_api():
         "?SEARCH_MODE=b2c"
         "&ADULT=2"
         "&CHECKIN_BEG=20261029"
-        "&CHECKIN_END=20261029"
+        "&CHECKIN_END=20261105"
         "&CHILD=0"
         "&COSTMAX="
         "&COSTMIN="
