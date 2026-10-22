@@ -1809,7 +1809,7 @@ def test_anex_api():
         "&PARTITION_PRICE=2"
         "&PRICE_PAGE=1"
         "&RECONPAGE=200"
-        "&REGULAR=True"
+        "&REGULAR=False"
         "&CHARTER=True"
         "&SORT_TYPE=0"
         "&SEARCH_TYPE=PACKET_TOUR"
@@ -2729,7 +2729,7 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    test_biblio_page()
+    test_anex_api()
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
    
