@@ -1798,7 +1798,7 @@ def test_anex_api():
         "&CHILD=0"
         "&COSTMAX="
         "&COSTMIN="
-        "&HOTELLIST=41394"
+        "&HOTELLIST="
         "&NIGHTMAX=7"
         "&NIGHTMIN=7"
         "&STATE=turkey"
