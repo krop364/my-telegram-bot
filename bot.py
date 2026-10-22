@@ -1786,237 +1786,133 @@ def test_coral_price():
         )
 
 
-def test_anex_api():
-    import requests
 
-    url = (
-        "https://api.anextour.ru/search"
-        "?SEARCH_MODE=b2c"
-        "&ADULT=2"
-        "&CHECKIN_BEG=20261025"
-        "&CHECKIN_END=20261025"
-        "&CHILD=0"
-        "&COSTMAX="
-        "&COSTMIN="
-        "&HOTELLIST="
-        "&NIGHTMAX=7"
-        "&NIGHTMIN=7"
-        "&STATE=turkey"
-        "&TOWNFROM=moskva"
-        "&CURRENCY=1"
-        "&FILTER=1"
-        "&FREIGHT=1"
-        "&PARTITION_PRICE=2"
-        "&PRICE_PAGE=1"
-        "&RECONPAGE=200"
-        "&REGULAR=False"
-        "&CHARTER=True"
-        "&SORT_TYPE=0"
-        "&SEARCH_TYPE=PACKET_TOUR"
-    )
+def test_anex_api():
+    from datetime import date
+
+    url = "https://api.anextour.ru/search"
+
+    params = {
+        "SEARCH_MODE": "b2c",
+        "ADULT": 2,
+        "CHECKIN_BEG": "20261025",
+        "CHECKIN_END": "20261025",
+        "CHILD": 0,
+        "COSTMAX": "",
+        "COSTMIN": "",
+        "HOTELLIST": "",
+        "NIGHTMAX": 7,
+        "NIGHTMIN": 7,
+        "STATE": "turkey",
+        "TOWNFROM": "moskva",
+        "CURRENCY": 1,
+        "FILTER": 1,
+        "FREIGHT": 1,
+        "PARTITION_PRICE": 2,
+        "PRICE_PAGE": 1,
+        "RECONPAGE": 200,
+        "REGULAR": "False",
+        "CHARTER": "True",
+        "SORT_TYPE": 0,
+        "SEARCH_TYPE": "PACKET_TOUR",
+    }
 
     try:
         response = requests.get(
             url,
-            timeout=30,
+            params=params,
             headers={
                 "User-Agent": "Mozilla/5.0",
-                "Accept": "application/json"
-            }
+                "Accept": "application/json",
+            },
+            timeout=30,
         )
+        response.raise_for_status()
 
-        print(
-            "🧪 ANEX API: HTTP =",
-            response.status_code,
-            flush=True
-        )
+        data = response.json()
 
-        print(
-            "🧪 ANEX API: размер ответа =",
-            len(response.content),
-            flush=True
-        )
+        if not isinstance(data, list) or not data:
+            print("❌ ANEX: неожиданный формат ответа", flush=True)
+            return
 
-        print(
-            "🧪 ANEX API: тип ответа =",
-            response.headers.get("Content-Type"),
-            flush=True
-        )
+        prices = data[0].get("prices", [])
 
-        try:
-            data = response.json()
+        if not isinstance(prices, list):
+            print("❌ ANEX: список цен не найден", flush=True)
+            return
 
-            print(
-                "🧪 ANEX API: тип JSON =",
-                type(data).__name__,
-                flush=True
-            )
-            if isinstance(data, list):
-                print(
-                    "🧪 ANEX API: количество элементов =",
-                    len(data),
-                    flush=True
+        today = date.today()
+        found = []
+
+        for tour in prices:
+            if not isinstance(tour, dict):
+                continue
+
+            try:
+                departure = date.fromisoformat(
+                    str(tour.get("checkIn", ""))[:10]
                 )
 
-                if data:
-                    first = data[0]
-                    prices = first.get("prices") if isinstance(first, dict) else None
+                nights = int(tour.get("nights", 0))
+                adults = int(tour.get("adult", 0))
+                children = int(tour.get("child", 0))
+                price = float(tour.get("additional_price") or 0)
 
-                    print(
-                        "🧪 ANEX API: тип prices =",
-                        type(prices).__name__,
-                        flush=True
-                    )
+            except (ValueError, TypeError):
+                continue
 
-                    if isinstance(prices, list):
-                        print(
-                            "🧪 ANEX API: количество предложений =",
-                            len(prices),
-                            flush=True
-                        )
-                        print(
-                            "🧪 ANEX: ПЕРВЫЕ 5 ТУРОВ",
-                            flush=True
-                        )
+            if departure < today:
+                continue
 
-                        for i, tour in enumerate(prices[:5], start=1):
-                            if not isinstance(tour, dict):
-                                continue
+            if departure != date(2026, 10, 25):
+                continue
 
-                            print(
-                                f"🧪 ANEX ТУР {i}:",
-                                "Отель =", tour.get("hotelName"),
-                                "| Звёзды =", tour.get("starName"),
-                                "| Номер =", tour.get("roomName"),
-                                "| Питание =", tour.get("mealName"),
-                                "| Цена =", tour.get("additional_price"),
-                                "| Валюта =", tour.get("currencyAlias"),
-                                "| Дата =", tour.get("hotelCheckIn"),
-                                flush=True
-                            )
+            if nights != 7 or adults != 2 or children != 0:
+                continue
 
-                        if prices and isinstance(prices[0], dict):
-                            offer = prices[0]
-                            print(
-                                "🧪 ANEX ПРОВЕРКА: ",
-                                "checkIn =", offer.get("checkIn"),
-                                "| nights =", offer.get("nights"),
-                                "| economIn =", offer.get("economIn"),
-                                "| economOut =", offer.get("economOut"),
-                                "| freightExternal =", offer.get("freightExternal"),
-                                "| hotelAvailability =", offer.get("hotelAvailability"),
-                                "| enable =", offer.get("enable"),
-                                "| currencyInc =", offer.get("currencyInc"),
-                                flush=True
-                            )
-                            print(
-                                "🧪 ANEX ПЕРЕЛЁТ: flightData =",
-                                str(offer.get("flightData"))[:700],
-                                flush=True
-                            )
+            if price <= 0:
+                continue
 
-                            print(
-                                "🧪 ANEX ПЕРЕЛЁТ: packet_Type =",
-                                offer.get("packet_Type"),
-                                flush=True
-                            )
+            if not tour.get("hotelName"):
+                continue
 
-                            print(
-                                "🧪 ANEX ПЕРЕЛЁТ: tourTypeName =",
-                                offer.get("tourTypeName"),
-                                flush=True
-                            )
+            if tour.get("enable") is False:
+                continue
 
-                            print(
-                                "🧪 ANEX ПЕРЕЛЁТ: currencyInc =",
-                                offer.get("currencyInc"),
-                                flush=True
-                            )
+            found.append({
+                "hotel": tour.get("hotelName"),
+                "stars": tour.get("starName"),
+                "room": tour.get("roomName"),
+                "meal": tour.get("mealName"),
+                "date": departure.isoformat(),
+                "nights": nights,
+                "price": round(price),
+                "flight": "Тип рейса не подтверждён",
+            })
 
-                            print(
-                                "🧪 ANEX ПЕРЕЛЁТ: tourUrl =",
-                                offer.get("tourUrl"),
-                                flush=True
-                            )
-                            print(
-                                "🧪 ANEX API: поля предложения =",
-                                list(offer.keys()),
-                                flush=True
-                            )
+        found.sort(key=lambda item: item["price"])
 
-                            for key in (
-                                "price",
-                                "converted_price",
-                                "additional_price",
-                                "hotelCheckIn",
-                                "hotelCheckOut",
-                                "townFrom",
-                                "room",
-                                "meal",
-                                "currency"
-                            ):
-                                if key in offer:
-                                    print(
-                                        f"🧪 ANEX API: предложение {key} =",
-                                        offer[key],
-                                        flush=True
-                                    )
-                    print(
-                        "🧪 ANEX API: тип первого элемента =",
-                        type(first).__name__,
-                        flush=True
-                    )
+        print(
+            f"🏖️ ANEX: подходящих предложений — {len(found)}",
+            flush=True
+        )
 
-                    if isinstance(first, dict):
-                        print(
-                            "🧪 ANEX API: поля первого элемента =",
-                            list(first.keys()),
-                            flush=True
-                        )
-
-                        for key in (
-                            "converted_price",
-                            "additional_price",
-                            "price",
-                            "hotelCheckIn",
-                            "hotelCheckOut",
-                            "result"
-                        ):
-                            if key in first:
-                                print(
-                                    f"🧪 ANEX API: {key} =",
-                                    first[key],
-                                    flush=True
-                                )
-            if isinstance(data, dict):
-                print(
-                    "🧪 ANEX API: поля JSON =",
-                    list(data.keys())[:20],
-                    flush=True
-                )
-
-                result = data.get("result")
-
-                if isinstance(result, dict):
-                    print(
-                        "🧪 ANEX API: результат поиска =",
-                        {
-                            "countTotal": result.get("countTotal"),
-                            "minPrice": result.get("minPrice"),
-                            "maxPrice": result.get("maxPrice")
-                        },
-                        flush=True
-                    )
-
-        except ValueError:
+        for number, tour in enumerate(found[:5], start=1):
             print(
-                "🧪 ANEX API: ответ не является JSON",
+                f"\n🏖️ ТУР {number}\n"
+                f"Отель: {tour['hotel']} {tour['stars'] or ''}\n"
+                f"Дата: {tour['date']}\n"
+                f"Ночей: {tour['nights']}\n"
+                f"Номер: {tour['room']}\n"
+                f"Питание: {tour['meal']}\n"
+                f"Цена ANEX: {tour['price']:,} ₽\n"
+                f"Перелёт: {tour['flight']}",
                 flush=True
             )
 
     except Exception as e:
         print(
-            "❌ ANEX API:",
+            "❌ ANEX: ошибка поиска:",
             type(e).__name__,
             str(e),
             flush=True
