@@ -1860,7 +1860,47 @@ def test_anex_api():
 
                 if data:
                     first = data[0]
+                    prices = first.get("prices") if isinstance(first, dict) else None
 
+                    print(
+                        "🧪 ANEX API: тип prices =",
+                        type(prices).__name__,
+                        flush=True
+                    )
+
+                    if isinstance(prices, list):
+                        print(
+                            "🧪 ANEX API: количество предложений =",
+                            len(prices),
+                            flush=True
+                        )
+
+                        if prices and isinstance(prices[0], dict):
+                            offer = prices[0]
+
+                            print(
+                                "🧪 ANEX API: поля предложения =",
+                                list(offer.keys()),
+                                flush=True
+                            )
+
+                            for key in (
+                                "price",
+                                "converted_price",
+                                "additional_price",
+                                "hotelCheckIn",
+                                "hotelCheckOut",
+                                "townFrom",
+                                "room",
+                                "meal",
+                                "currency"
+                            ):
+                                if key in offer:
+                                    print(
+                                        f"🧪 ANEX API: предложение {key} =",
+                                        offer[key],
+                                        flush=True
+                                    )
                     print(
                         "🧪 ANEX API: тип первого элемента =",
                         type(first).__name__,
