@@ -2277,26 +2277,8 @@ def ask_gpt(user_id, user_message):
                     + "\nСообщи, что цена требует подтверждения перед бронированием."
                     + "\nНе заменяй эти результаты приблизительными ценами из web search."
                 )
-```
 
-Теперь найди ниже:
 
-```python
-                        SYSTEM_PROMPT
-                        + "\n\nТекущая дата: "
-                        + datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
-                        + ". Используй её для определения года поездки."
-```
-
-Замени на:
-
-<CodeBlock language="python" editable>
-                        SYSTEM_PROMPT
-                        + "\n\nТекущая дата: "
-                        + datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
-                        + ". Используй её для определения года поездки."
-                        + anex_context
- 
     try:
         response = openai_client.responses.create(
             model="gpt-5-mini",
@@ -2308,6 +2290,7 @@ def ask_gpt(user_id, user_message):
                         + "\n\nТекущая дата: "
                         + datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
                         + ". Используй её для определения года поездки."
+                        + anex_context
                     )
                 }
             ] + messages,
