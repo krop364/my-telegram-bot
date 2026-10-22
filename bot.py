@@ -1898,6 +1898,18 @@ def test_anex_api():
                         if prices and isinstance(prices[0], dict):
                             offer = prices[0]
                             print(
+                                "🧪 ANEX ПРОВЕРКА: ",
+                                "checkIn =", offer.get("checkIn"),
+                                "| nights =", offer.get("nights"),
+                                "| economIn =", offer.get("economIn"),
+                                "| economOut =", offer.get("economOut"),
+                                "| freightExternal =", offer.get("freightExternal"),
+                                "| hotelAvailability =", offer.get("hotelAvailability"),
+                                "| enable =", offer.get("enable"),
+                                "| currencyInc =", offer.get("currencyInc"),
+                                flush=True
+                            )
+                            print(
                                 "🧪 ANEX ПЕРЕЛЁТ: flightData =",
                                 str(offer.get("flightData"))[:700],
                                 flush=True
