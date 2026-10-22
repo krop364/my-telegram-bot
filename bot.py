@@ -2071,7 +2071,7 @@ def ask_gpt(user_id, user_message):
             tools=[
                 {
                     "type": "web_search",
-                    "search_context_size": "medium",
+                    "search_context_size": "high",    
                     "filters": {
                         "allowed_domains": [
                             "anextour.ru",
