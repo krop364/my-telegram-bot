@@ -2021,6 +2021,30 @@ def test_anex_api():
             str(e),
             flush=True
         )
+
+def test_biblio_page():
+    import requests
+
+    url = "https://www.bgoperator.ru/"
+
+    try:
+        response = requests.get(
+            url,
+            timeout=30,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+
+        html = response.text
+
+        print("🧪 BIBLIO: HTTP =", response.status_code, flush=True)
+        print("🧪 BIBLIO: размер HTML =", len(response.content), flush=True)
+        print("🧪 BIBLIO: адрес =", response.url, flush=True)
+        print("🧪 BIBLIO: туры =", html.lower().count("туры"), flush=True)
+        print("🧪 BIBLIO: рубли =", html.count("руб"), flush=True)
+        print("🧪 BIBLIO: начало =", html[:300].replace("\n", " "), flush=True)
+
+    except Exception as e:
+        print("❌ BIBLIO:", type(e).__name__, str(e), flush=True)
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2669,7 +2693,7 @@ if __name__ == "__main__":
 
     # Создаём базу данных
     init_database()
-    test_anex_api()
+    test_biblio_page()
     # Проверяем наличие сертификатов MAX
     check_max_cert_files()
    
