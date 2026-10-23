@@ -2178,7 +2178,102 @@ def extract_anex_test_parameters(text):
         result["budget_max"] = budget
     return result
 
+def understand_anex_request(messages):
+    """
+    GPT анализирует диалог и извлекает параметры поиска.
+    Цены эта функция НЕ ищет.
+    """
+    import json
 
+    conversation = []
+
+    for message in messages[-12:]:
+        role = message.get("role", "")
+        content = message.get("content", "")
+
+        if role not in ("user", "assistant"):
+            continue
+
+        if not isinstance(content, str):
+            continue
+
+        conversation.append({
+            "role": role,
+            "content": content[:3000]
+        })
+
+    if not conversation:
+        return None
+
+    try:
+        response = openai_client.responses.create(
+            model="gpt-5-mini",
+            input=[
+                {
+                    "role": "developer",
+                    "content": (
+                        "Ты извлекаешь параметры поиска пакетных туров "
+                        "из диалога турагента с клиентом.\n"
+                        "Сегодняшняя дата по Москве: "
+                        + datetime.now(
+                            ZoneInfo("Europe/Moscow")
+                        ).strftime("%Y-%m-%d")
+                        + "\n"
+                        "Учитывай предыдущие сообщения клиента. "
+                        "Последнее сообщение может менять только один параметр.\n"
+                        "Не придумывай отсутствующие данные.\n"
+                        "Если клиент меняет дату, ночи или бюджет, "
+                        "сохраняй остальные ранее указанные условия.\n"
+                        "Если клиент явно отказался от прежнего направления, "
+                        "не используй его.\n"
+                        "Не считай цены и не выдумывай туры.\n"
+                        "Верни только JSON с полями:\n"
+                        "search_requested: boolean,\n"
+                        "departure_city: string или null,\n"
+                        "country: string или null,\n"
+                        "departure_date: YYYY-MM-DD или null,\n"
+                        "departure_date_end: YYYY-MM-DD или null,\n"
+                        "nights: integer или null,\n"
+                        "nights_max: integer или null,\n"
+                        "adults: integer или null,\n"
+                        "children: integer или null,\n"
+                        "budget_max: integer или null.\n"
+                        "search_requested=true, если клиент просит "
+                        "подобрать тур, изменить параметры прежнего подбора "
+                        "или показать другие варианты.\n"
+                        "Для точной даты departure_date_end=null. "
+                        "Для точного количества ночей nights_max=null.\n"
+                        "Если сказано 'без детей', children=0.\n"
+                        "Если дети не упомянуты, children=null.\n"
+                        "Не подставляй Москву, Турцию или 2 взрослых "
+                        "без оснований в диалоге."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        conversation,
+                        ensure_ascii=False
+                    )
+                }
+            ],
+            text={
+                "format": {
+                    "type": "json_object"
+                }
+            }
+        )
+
+        return json.loads(response.output_text)
+
+    except Exception as e:
+        print(
+            "❌ ANEX PARAMS:",
+            type(e).__name__,
+            str(e),
+            flush=True
+        )
+        return None
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2190,55 +2285,118 @@ def ask_gpt(user_id, user_message):
             "content": user_message
         }
     ]
-    price_keywords = [
-        "цена",
-        "цену",
-        "цены",
-        "ценам",
-        "стоимость",
-        "стоит",
-        "сколько",
-        "рассчитай",
-        "расчет",
-        "расчёт",
-        "посчитай",
-        "подбери тур",
-        "найди тур",
-        "горящий тур"
-    ]
-
-    is_price_request = any(
-        keyword in user_message.lower()
-        for keyword in price_keywords
-    )
-
     anex_context = ""
 
-    if is_price_request:
-        anex_params = extract_anex_test_parameters(user_message)
+    anex_params = understand_anex_request(messages)
 
-        if anex_params:
-            anex_tours = search_anex_tours(**anex_params)
+    if anex_params and anex_params.get("search_requested"):
 
-            if anex_tours:
-                anex_context = (
-                    "\n\nПРОВЕРЕННЫЕ ДАННЫЕ ПОИСКА ANEX:\n"
-                    + json.dumps(
-                        anex_tours,
-                        ensure_ascii=False,
-                        indent=2
-                    )
-                    + "\n\nЭто цены, полученные Python из поиска ANEX."
-                    + "\nПоказывай только соответствующие запросу предложения."
-                    + "\nНе изменяй цены, даты, номера и питание."
-                    + "\nТип рейса не подтвержден, не называй его чартером."
-                    + "\nНе утверждай, что наличие и окончательная цена бронирования подтверждены."
-                    + "\nСсылка source ведет на главную страницу, а не на конкретный тур."
-                    + "\nСообщи, что цена требует подтверждения перед бронированием."
-                    + "\nНе заменяй эти результаты приблизительными ценами из web search."
+        required = [
+            "departure_city",
+            "country",
+            "departure_date",
+            "nights",
+            "adults"
+        ]
+
+        missing = [
+            key for key in required
+            if anex_params.get(key) is None
+        ]
+
+        if not missing:
+
+            city = str(
+                anex_params["departure_city"]
+            ).strip().lower()
+
+            country = str(
+                anex_params["country"]
+            ).strip().lower()
+
+            children = anex_params.get("children")
+
+            if children is None:
+                children = 0
+
+            if (
+                city == "москва"
+                and country == "турция"
+                and children == 0
+            ):
+                search_params = {
+                    "departure_city": city,
+                    "country": country,
+                    "departure_date": anex_params["departure_date"],
+                    "nights": anex_params["nights"],
+                    "adults": anex_params["adults"],
+                    "children": 0,
+                    "limit": 5
+                }
+
+                optional = [
+                    "departure_date_end",
+                    "nights_max",
+                    "budget_max"
+                ]
+
+                for key in optional:
+                    value = anex_params.get(key)
+
+                    if value is not None:
+                        search_params[key] = value
+
+                anex_tours = search_anex_tours(
+                    **search_params
                 )
 
+                if anex_tours:
+                    anex_context = (
+                        "\n\nРЕЗУЛЬТАТЫ ПОИСКА ANEX:\n"
+                        + json.dumps(
+                            anex_tours,
+                            ensure_ascii=False,
+                            indent=2
+                        )
+                        + "\n\nИспользуй эти предложения "
+                        "для ответа клиенту.\n"
+                        "Не изменяй цены, даты, номера и питание.\n"
+                        "Не называй перелёт чартерным "
+                        "без подтверждения.\n"
+                        "Не утверждай, что цена бронирования "
+                        "окончательно подтверждена.\n"
+                        "Не заменяй эти цены оценками из интернета.\n"
+                        "Предлагай разные отели.\n"
+                        "Не отправляй клиента к менеджеру "
+                        "вместо показа найденных вариантов."
+                    )
 
+                else:
+                    anex_context = (
+                        "\n\nПоиск ANEX выполнен, но подходящие "
+                        "предложения не получены. "
+                        "Не выдумывай цены. "
+                        "Не утверждай, что туров вообще нет."
+                    )
+
+            else:
+                anex_context = (
+                    "\n\nПараметры клиента распознаны, "
+                    "но автоматический поиск ANEX "
+                    "пока поддерживает только вылет "
+                    "из Москвы в Турцию без детей. "
+                    "Не выдавай цены по другим направлениям "
+                    "за результаты Python-поиска ANEX."
+                )
+
+        else:
+            anex_context = (
+                "\n\nКлиент обсуждает подбор тура. "
+                "Для поиска ANEX не хватает параметров: "
+                + ", ".join(missing)
+                + ". Уточни только недостающие данные. "
+                "Не придумывай параметры."
+            )
     try:
         response = openai_client.responses.create(
             model="gpt-5-mini",
