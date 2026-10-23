@@ -10,6 +10,7 @@ import json
 import time
 from urllib.parse import parse_qsl
 
+
 from flask import Flask, request, jsonify, render_template
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -21,7 +22,7 @@ from pyrogram.types import (
 from openai import OpenAI
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-
+from pathlib import Path
 
 # ============================================================
 # НАСТРОЙКИ
@@ -1982,6 +1983,53 @@ def test_biblio_page():
 # ============================================================
 # ПОИСК ПАКЕТНЫХ ТУРОВ ANEX
 # ============================================================
+_ANEX_COUNTRIES = None
+_ANEX_DEPARTURES = None
+
+
+def _anex_key(value):
+    return " ".join(str(value or "").casefold().replace("ё", "е").split())
+
+
+def anex_resolve_route(departure_city, country):
+    global _ANEX_COUNTRIES, _ANEX_DEPARTURES
+    try:
+        if _ANEX_COUNTRIES is None or _ANEX_DEPARTURES is None:
+            base = Path(__file__).resolve().parent
+            with (base / "anex_countries.json").open(encoding="utf-8") as f:
+                _ANEX_COUNTRIES = json.load(f)
+            with (base / "anex_departures.json").open(encoding="utf-8") as f:
+                _ANEX_DEPARTURES = json.load(f)
+    except (OSError, ValueError, TypeError) as e:
+        print("ANEX справочники:", type(e).__name__, str(e), flush=True)
+        return None, None
+
+    aliases = {
+        "тайланд": "таиланд",
+        "эмираты": "оаэ", "объединенные арабские эмираты": "оаэ",
+        "сейшелы": "сейшельские ос-ва",
+        "питер": "санкт-петербург", "спб": "санкт-петербург",
+    }
+    c_key = _anex_key(country)
+    t_key = _anex_key(departure_city)
+    c_key = aliases.get(c_key, c_key)
+    t_key = aliases.get(t_key, t_key)
+
+    country_row = next((row for row in _ANEX_COUNTRIES
+                        if c_key in (_anex_key(row.get("name")), _anex_key(row.get("nameAlt")),
+                                     _anex_key(row.get("stateISO")), _anex_key(row.get("stateISO3")))), None)
+    city_row = next((row for row in _ANEX_DEPARTURES
+                     if t_key in (_anex_key(row.get("name")), _anex_key(row.get("nameAlt")),
+                                  _anex_key(row.get("secondLevel")))), None)
+    if country_row is None or city_row is None:
+        return None, None
+
+    # Для Москвы и Турции сохраняем уже доказавшую работоспособность пару.
+    country_code = "turkey" if country_row["id"] == 3 else country_row["id"]
+    city_code = city_row.get("secondLevel") or city_row["id"]
+    return country_code, city_code
+
+
 def search_anex_tours(
     departure_city,
     country,
@@ -1994,12 +2042,10 @@ def search_anex_tours(
     nights_max=None,
     budget_max=None,
 ):
-    """Поиск пакетных предложений ANEX; пока поддерживаются Москва и Турция."""
-    cities = {"москва": "moskva"}
-    countries = {"турция": "turkey"}
-    city_code = cities.get(departure_city.lower())
-    country_code = countries.get(country.lower())
-    if not city_code or not country_code:
+    """Пакетные туры ANEX по справочникам стран и городов, пока без детей."""
+    country_code, city_code = anex_resolve_route(departure_city, country)
+    if country_code is None or city_code is None:
+        print("ANEX: страна или город не найдены в справочнике:", departure_city, country, flush=True)
         return []
 
     try:
@@ -2093,6 +2139,7 @@ def search_anex_tours(
     except Exception as e:
         print("❌ ANEX SEARCH:", type(e).__name__, str(e), flush=True)
         return []
+
 def extract_anex_test_parameters(text):
     """Москва → Турция; дата или диапазон, ночи или диапазон, взрослые без детей."""
     message = text.lower().replace("ё", "е")
@@ -2320,12 +2367,8 @@ def ask_gpt(user_id, user_message):
 
             if children is None:
                 children = 0
-
-            if (
-                city == "москва"
-                and country == "турция"
-                and children == 0
-            ):
+            if children == 0:
+            
                 search_params = {
                     "departure_city": city,
                     "country": country,
