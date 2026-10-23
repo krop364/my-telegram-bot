@@ -2288,7 +2288,9 @@ def ask_gpt(user_id, user_message):
     anex_context = ""
 
     anex_params = understand_anex_request(messages)
-
+    is_price_request = bool(
+        anex_params and anex_params.get("search_requested")
+    )
     if anex_params and anex_params.get("search_requested"):
 
         required = [
