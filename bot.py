@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import threading
 import sqlite3
@@ -18,7 +19,7 @@ from pyrogram.types import (
     InlineKeyboardButton
 )
 from openai import OpenAI
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -1982,242 +1983,114 @@ def test_biblio_page():
 # ПОИСК ПАКЕТНЫХ ТУРОВ ANEX
 # ============================================================
 
-def search_anex_tours(
-    departure_city,
-    country,
-    departure_date,
-    nights,
-    adults,
-    children=0,
-    limit=5
-):
-    from datetime import date
-
-    cities = {
-        "москва": "moskva"
-    }
-
-    countries = {
-        "турция": "turkey"
-    }
-
-    city_code = cities.get(departure_city.lower())
-    country_code = countries.get(country.lower())
-
-    if not city_code or not country_code:
-        return []
-
-    travel_date = date.fromisoformat(departure_date)
-
-    if travel_date < date.today():
-        return []
-
-    params = {
-        "SEARCH_MODE": "b2c",
-        "ADULT": adults,
-        "CHECKIN_BEG": travel_date.strftime("%Y%m%d"),
-        "CHECKIN_END": travel_date.strftime("%Y%m%d"),
-        "CHILD": children,
-        "COSTMAX": "",
-        "COSTMIN": "",
-        "HOTELLIST": "",
-        "NIGHTMAX": nights,
-        "NIGHTMIN": nights,
-        "STATE": country_code,
-        "TOWNFROM": city_code,
-        "CURRENCY": 1,
-        "FILTER": 1,
-        "FREIGHT": 1,
-        "PARTITION_PRICE": 2,
-        "PRICE_PAGE": 1,
-        "RECONPAGE": 200,
-        "REGULAR": "False",
-        "CHARTER": "True",
-        "SORT_TYPE": 0,
-        "SEARCH_TYPE": "PACKET_TOUR"
-    }
-
-    try:
-        response = requests.get(
-            "https://api.anextour.ru/search",
-            params=params,
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "application/json"
-            },
-            timeout=30
-        )
-
-        response.raise_for_status()
-        data = response.json()
-
-        if not isinstance(data, list) or not data:
-            return []
-
-        prices = data[0].get("prices", [])
-
-        if not isinstance(prices, list):
-            return []
-
-        cheapest_by_hotel = {}
-
-        for tour in prices:
-            if not isinstance(tour, dict):
-                continue
-
-            try:
-                checkin = str(tour.get("checkIn", ""))[:10]
-                tour_nights = int(tour.get("nights", 0))
-                tour_adults = int(tour.get("adult", 0))
-                tour_children = int(tour.get("child", 0))
-                price = float(tour.get("additional_price") or 0)
-            except (ValueError, TypeError):
-                continue
-
-            if checkin != departure_date:
-                continue
-
-            if tour_nights != nights:
-                continue
-
-            if tour_adults != adults:
-                continue
-
-            if tour_children != children:
-                continue
-
-            if price <= 0:
-                continue
-
-            if tour.get("enable") is False:
-                continue
-
-            hotel = str(tour.get("hotelName") or "").strip()
-
-            if not hotel:
-                continue
-
-            item = {
-                "operator": "ANEX",
-                "hotel": hotel,
+                "operator": "ANEX", "hotel": hotel,
                 "stars": str(tour.get("starName") or ""),
                 "room": str(tour.get("roomName") or ""),
                 "meal": str(tour.get("mealName") or ""),
-                "date": checkin,
-                "nights": nights,
-                "adults": adults,
-                "children": children,
+                "date": checkin.isoformat(), "nights": tour_nights,
+                "adults": adults, "children": children,
                 "price_rub": round(price),
                 "flight_type": "Не подтверждён",
-                "source": "https://anextour.ru/"
+                "source": "https://anextour.ru/",
             }
-
             hotel_key = hotel.casefold()
-
             previous = cheapest_by_hotel.get(hotel_key)
-
             if previous is None or price < previous["price_rub"]:
                 cheapest_by_hotel[hotel_key] = item
-
-        result = sorted(
-            cheapest_by_hotel.values(),
-            key=lambda item: item["price_rub"]
-        )[:limit]
-
-        print(
-            "🏖️ ANEX: найдено разных отелей =",
-            len(cheapest_by_hotel),
-            "| передано GPT =",
-            len(result),
-            flush=True
-        )
-
+        result = sorted(cheapest_by_hotel.values(), key=lambda item: item["price_rub"])[:limit]
+        print("🏖️ ANEX: найдено разных отелей =", len(cheapest_by_hotel),
+              "| передано GPT =", len(result), flush=True)
         return result
-
     except Exception as e:
-        print(
-            "❌ ANEX SEARCH:",
-            type(e).__name__,
-            str(e),
-            flush=True
-        )
+        print("❌ ANEX SEARCH:", type(e).__name__, str(e), flush=True)
         return []
 
 
 def extract_anex_test_parameters(text):
-    """
-    Первая безопасная версия распознавания:
-    Москва, Турция, точная дата, ночи, взрослые без детей.
-    """
-    import re
-    from datetime import date, datetime
-
+    """Москва → Турция; дата или диапазон, ночи или диапазон, взрослые без детей."""
     message = text.lower().replace("ё", "е")
-
-    if "москв" not in message:
+    if "москв" not in message or "турц" not in message:
         return None
 
-    if "турц" not in message:
+    # Дети пока не поддерживаются, но «без детей» — допустимое условие.
+    without_children = bool(re.search(r"\bбез\s+детей\b", message))
+    cleaned = re.sub(r"\bбез\s+детей\b", "", message)
+    if re.search(r"\b(ребенок|ребенка|ребенком|дети|детей|детьми)\b", cleaned):
         return None
 
-    if re.search(r"\b(ребенок|ребенка|дети|детей|детьми)\b", message):
+    dates = list(re.finditer(r"(?<!\d)(\d{1,2})[./](\d{1,2})(?:[./](\d{4}))?(?!\d)", message))
+    if not dates:
         return None
+    today = datetime.now(ZoneInfo("Europe/Moscow")).date()
 
-    date_match = re.search(
-        r"\b(\d{1,2})[./](\d{1,2})(?:[./](\d{4}))?\b",
-        message
-    )
+    def parse_date(match, reference=None):
+        day, month = int(match.group(1)), int(match.group(2))
+        explicit_year = match.group(3)
+        year = int(explicit_year) if explicit_year else (reference.year if reference else today.year)
+        try:
+            candidate = date(year, month, day)
+            if not explicit_year and candidate < (reference or today):
+                candidate = date(year + 1, month, day)
+            return candidate
+        except ValueError:
+            return None
 
-    if not date_match:
+    start = parse_date(dates[0])
+    if start is None or start < today:
         return None
-
-    day = int(date_match.group(1))
-    month = int(date_match.group(2))
-    year = (
-        int(date_match.group(3))
-        if date_match.group(3)
-        else date.today().year
-    )
-
-    try:
-        travel_date = date(year, month, day)
-
-        if not date_match.group(3) and travel_date < date.today():
-            travel_date = date(year + 1, month, day)
-
-    except ValueError:
-        return None
+    end = start
+    if len(dates) >= 2:
+        between = message[dates[0].end():dates[1].start()]
+        if re.fullmatch(r"\s*(?:-|–|—|по|до)\s*", between):
+            end = parse_date(dates[1], reference=start)
+            if end is None:
+                return None
 
     nights_match = re.search(
-        r"(\d{1,2})\s*ноч(?:ь|и|ей)",
-        message
+        r"\b(\d{1,2})\s*(?:-|–|—|до)\s*(\d{1,2})\s*ноч(?:ь|и|ей)\b", message
     )
+    if nights_match:
+        nights, nights_max = int(nights_match.group(1)), int(nights_match.group(2))
+    else:
+        single_nights = re.search(r"\b(\d{1,2})\s*ноч(?:ь|и|ей)\b", message)
+        if not single_nights:
+            return None
+        nights = nights_max = int(single_nights.group(1))
 
-    adults_match = re.search(
-        r"(\d+)\s*взросл",
-        message
-    )
-
-    if not nights_match or not adults_match:
+    adults_match = re.search(r"\b(\d+)\s*взросл", message)
+    if not adults_match:
         return None
-
-    nights = int(nights_match.group(1))
     adults = int(adults_match.group(1))
 
-    if not 1 <= nights <= 30:
-        return None
+    budget_match = re.search(
+        r"(?:до|не более|максимум)\s*(\d[\d\s\u00a0]*)(\s*тыс(?:яч)?\b|\s*[₽р]\b|\s*руб\b)?",
+        message,
+    )
+    budget = None
+    if budget_match:
+        number = int(re.sub(r"\s", "", budget_match.group(1)))
+        unit = (budget_match.group(2) or "").strip()
+        # Не принимаем «до 10 ночей» за бюджет.
+        after = message[budget_match.end():budget_match.end() + 8]
+        if "ноч" not in after and (unit or number >= 10000):
+            budget = number * 1000 if "тыс" in unit else number
 
-    if not 1 <= adults <= 10:
+    if (end < start or (end - start).days > 14 or not 1 <= nights <= nights_max <= 30
+            or not 1 <= adults <= 10):
         return None
-
-    return {
-        "departure_city": "москва",
-        "country": "турция",
-        "departure_date": travel_date.isoformat(),
-        "nights": nights,
-        "adults": adults,
-        "children": 0
+    result = {
+        "departure_city": "москва", "country": "турция",
+        "departure_date": start.isoformat(), "nights": nights,
+        "adults": adults, "children": 0,
     }
+    if end != start:
+        result["departure_date_end"] = end.isoformat()
+    if nights_max != nights:
+        result["nights_max"] = nights_max
+    if budget is not None:
+        result["budget_max"] = budget
+    return result
+
 
 def ask_gpt(user_id, user_message):
     history = get_history(
