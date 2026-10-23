@@ -1982,7 +1982,96 @@ def test_biblio_page():
 # ============================================================
 # ПОИСК ПАКЕТНЫХ ТУРОВ ANEX
 # ============================================================
+def search_anex_tours(
+    departure_city,
+    country,
+    departure_date,
+    nights,
+    adults,
+    children=0,
+    limit=5,
+    departure_date_end=None,
+    nights_max=None,
+    budget_max=None,
+):
+    """Поиск пакетных предложений ANEX; пока поддерживаются Москва и Турция."""
+    cities = {"москва": "moskva"}
+    countries = {"турция": "turkey"}
+    city_code = cities.get(departure_city.lower())
+    country_code = countries.get(country.lower())
+    if not city_code or not country_code:
+        return []
 
+    try:
+        start = date.fromisoformat(departure_date)
+        end = date.fromisoformat(departure_date_end or departure_date)
+        min_nights = int(nights)
+        max_nights = int(nights_max if nights_max is not None else nights)
+        adults = int(adults)
+        children = int(children)
+        limit = int(limit)
+        budget = float(budget_max) if budget_max is not None else None
+    except (ValueError, TypeError):
+        return []
+
+    today = datetime.now(ZoneInfo("Europe/Moscow")).date()
+    if (start < today or end < start or (end - start).days > 14
+            or not 1 <= min_nights <= max_nights <= 30
+            or not 1 <= adults <= 10 or children != 0
+            or not 1 <= limit <= 20 or (budget is not None and budget <= 0)):
+        return []
+
+    params = {
+        "SEARCH_MODE": "b2c", "ADULT": adults,
+        "CHECKIN_BEG": start.strftime("%Y%m%d"),
+        "CHECKIN_END": end.strftime("%Y%m%d"),
+        "CHILD": children,
+        "COSTMAX": "", "COSTMIN": "", "HOTELLIST": "",
+        "NIGHTMAX": max_nights, "NIGHTMIN": min_nights,
+        "STATE": country_code, "TOWNFROM": city_code,
+        "CURRENCY": 1, "FILTER": 1, "FREIGHT": 1,
+        "PARTITION_PRICE": 2, "PRICE_PAGE": 1, "RECONPAGE": 200,
+        "REGULAR": "False", "CHARTER": "True",
+        "SORT_TYPE": 0, "SEARCH_TYPE": "PACKET_TOUR",
+    }
+    try:
+        response = requests.get(
+            "https://api.anextour.ru/search",
+            params=params,
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, list) or not data or not isinstance(data[0], dict):
+            return []
+        prices = data[0].get("prices", [])
+        if not isinstance(prices, list):
+            return []
+        cheapest_by_hotel = {}
+        for tour in prices:
+            if not isinstance(tour, dict):
+                continue
+            try:
+                checkin = date.fromisoformat(str(tour.get("checkIn", ""))[:10])
+                tour_nights = int(tour.get("nights", 0))
+                tour_adults = int(tour.get("adult", 0))
+                tour_children = int(tour.get("child", 0))
+                price = float(tour.get("additional_price") or 0)
+            except (ValueError, TypeError, OverflowError):
+                continue
+            if not (start <= checkin <= end and min_nights <= tour_nights <= max_nights):
+                continue
+            if tour_adults != adults or tour_children != children or price <= 0:
+                continue
+            if budget is not None and price > budget:
+                continue
+            if tour.get("enable") is False:
+                continue
+            hotel = str(tour.get("hotelName") or "").strip()
+            if not hotel:
+                continue
+            item = {
                 "operator": "ANEX", "hotel": hotel,
                 "stars": str(tour.get("starName") or ""),
                 "room": str(tour.get("roomName") or ""),
@@ -2004,8 +2093,6 @@ def test_biblio_page():
     except Exception as e:
         print("❌ ANEX SEARCH:", type(e).__name__, str(e), flush=True)
         return []
-
-
 def extract_anex_test_parameters(text):
     """Москва → Турция; дата или диапазон, ночи или диапазон, взрослые без детей."""
     message = text.lower().replace("ё", "е")
