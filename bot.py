@@ -2103,9 +2103,21 @@ def search_anex_tours(
         )
         response.raise_for_status()
         data = response.json()
-        if not isinstance(data, list) or not data or not isinstance(data[0], dict):
+        first = data[0] if isinstance(data, list) and data and isinstance(data[0], dict) else None
+        print(
+            "🔎 ANEX API:",
+            "HTTP =", response.status_code,
+            "| параметры =", {k: params.get(k) for k in ("STATE", "TOWNFROM", "CHECKIN_BEG", "CHECKIN_END", "NIGHTMIN", "NIGHTMAX", "ADULT", "CHILD", "AGES", "CHILDAviaChild", "CHILDAviaInfant")},
+            "| тип ответа =", type(data).__name__,
+            "| ключи =", list(first.keys()) if first else None,
+            "| result =", str(first.get("result"))[:250] if first else None,
+            "| state =", str(first.get("state"))[:250] if first else None,
+            "| prices =", len(first.get("prices")) if first and isinstance(first.get("prices"), list) else None,
+            flush=True,
+        )
+        if first is None:
             return []
-        prices = data[0].get("prices", [])
+        prices = first.get("prices", [])
         if not isinstance(prices, list):
             return []
         cheapest_by_hotel = {}
