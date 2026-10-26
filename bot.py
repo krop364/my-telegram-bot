@@ -2035,7 +2035,48 @@ def anex_resolve_route(departure_city, country):
     city_code = city_row.get("secondLevel") or city_row["id"]
     return country_code, city_code
 
+def get_anex_hotel_rating(hotel_id):
+    """Получает рейтинг и количество оценок отеля из ANEX."""
+    try:
+        response = requests.get(
+            "https://api.anextour.ru/b2c/TopHotelRatings",
+            params={"hotels": hotel_id},
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
 
+        if not isinstance(data, dict):
+            return None
+
+        ratings = data.get("list", [])
+
+        if not isinstance(ratings, list):
+            return None
+
+        for hotel in ratings:
+            if not isinstance(hotel, dict):
+                continue
+
+            if str(hotel.get("hotelId")) != str(hotel_id):
+                continue
+
+            rating = float(hotel.get("rate") or 0)
+            reviews = int(float(hotel.get("ratesCount") or 0))
+
+            return {
+                "rating": rating,
+                "reviews": reviews,
+            }
+
+    except Exception as e:
+        print("❌ ANEX RATING:", hotel_id, str(e), flush=True)
+
+    return None
 def search_anex_tours(
     departure_city,
     country,
@@ -2166,6 +2207,7 @@ def search_anex_tours(
                 continue
             item = {
                 "operator": "ANEX", "hotel": hotel,
+                "hotel_id": tour.get("hotelInc"),
                 "stars": str(tour.get("starName") or ""),
                 "room": str(tour.get("roomName") or ""),
                 "meal": str(tour.get("mealName") or ""),
@@ -2180,7 +2222,46 @@ def search_anex_tours(
             previous = cheapest_by_hotel.get(hotel_key)
             if previous is None or price < previous["price_rub"]:
                 cheapest_by_hotel[hotel_key] = item
-        result = sorted(cheapest_by_hotel.values(), key=lambda item: item["price_rub"])[:limit]
+                filtered_hotels = []
+        rating_cache = {}
+
+        for item in cheapest_by_hotel.values():
+            hotel_id = item.get("hotel_id")
+
+            if not hotel_id:
+                continue
+
+            if hotel_id not in rating_cache:
+                rating_cache[hotel_id] = get_anex_hotel_rating(hotel_id)
+
+            rating_data = rating_cache[hotel_id]
+
+            if rating_data is None:
+                continue
+
+            rating = rating_data["rating"]
+            reviews = rating_data["reviews"]
+
+            if rating <= 3.5 or reviews <= 100:
+                continue
+
+            item["rating"] = round(rating, 2)
+            item["reviews_count"] = reviews
+
+            filtered_hotels.append(item)
+
+        result = sorted(
+            filtered_hotels,
+            key=lambda item: item["price_rub"]
+        )[:limit]
+
+        print(
+            "⭐ ANEX РЕЙТИНГ:",
+            "всего отелей =", len(cheapest_by_hotel),
+            "| прошли фильтр =", len(filtered_hotels),
+            "| передано GPT =", len(result),
+            flush=True
+        )
         print("🏖️ ANEX: найдено разных отелей =", len(cheapest_by_hotel),
               "| передано GPT =", len(result), flush=True)
         return result
