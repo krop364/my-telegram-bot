@@ -1832,7 +1832,13 @@ def test_anex_api():
         response.raise_for_status()
 
         data = response.json()
-
+        print(
+            "🔎 ANEX ОТВЕТ:",
+            "HTTP =", response.status_code,
+            "| тип =", type(data).__name__,
+            "| данные =", str(data)[:1200],
+            flush=True
+        )
         if not isinstance(data, list) or not data:
             print("❌ ANEX: неожиданный формат ответа", flush=True)
             return
