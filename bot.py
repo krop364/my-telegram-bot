@@ -2090,14 +2090,16 @@ def search_anex_tours(
         "SORT_TYPE": 0, "SEARCH_TYPE": "PACKET_TOUR",
     }
     if children:
-        params["AGES"] = ",".join(str(age) for age in sorted(ages, reverse=True))
-        params["CHILDAviaChild"] = children
-        params["CHILDAviaInfant"] = 0
+        params["AGES"] = ",".join(str(age) for age in ages)
 
         params["REGULAR"] = "True"
-        params["PARTITION_PRICE"] = ""
+        params["PARTITION_PRICE"] = 32
         params["RECONPAGE"] = 500
-        params["THE_BEST_AT_TOP"] = "True"
+        params["THE_BEST_AT_TOP"] = "true"
+
+        params.pop("CHILDAviaChild", None)
+        params.pop("CHILDAviaInfant", None)
+        params.pop("STATEINC", None)
 
     try:
         response = requests.get(
