@@ -2041,8 +2041,9 @@ def search_anex_tours(
     departure_date_end=None,
     nights_max=None,
     budget_max=None,
+    child_ages=None,
 ):
-    """Пакетные туры ANEX по справочникам стран и городов, пока без детей."""
+    """Пакетные туры ANEX с возрастами детей от 2 лет."""
     country_code, city_code = anex_resolve_route(departure_city, country)
     if country_code is None or city_code is None:
         print("ANEX: страна или город не найдены в справочнике:", departure_city, country, flush=True)
@@ -2055,6 +2056,7 @@ def search_anex_tours(
         max_nights = int(nights_max if nights_max is not None else nights)
         adults = int(adults)
         children = int(children)
+        ages = [int(age) for age in (child_ages or [])]
         limit = int(limit)
         budget = float(budget_max) if budget_max is not None else None
     except (ValueError, TypeError):
@@ -2063,7 +2065,8 @@ def search_anex_tours(
     today = datetime.now(ZoneInfo("Europe/Moscow")).date()
     if (start < today or end < start or (end - start).days > 14
             or not 1 <= min_nights <= max_nights <= 30
-            or not 1 <= adults <= 10 or children != 0
+            or not 1 <= adults <= 10 or not 0 <= children <= 3
+            or len(ages) != children or any(age < 2 or age > 17 for age in ages)
             or not 1 <= limit <= 20 or (budget is not None and budget <= 0)):
         return []
 
@@ -2080,6 +2083,11 @@ def search_anex_tours(
         "REGULAR": "False", "CHARTER": "True",
         "SORT_TYPE": 0, "SEARCH_TYPE": "PACKET_TOUR",
     }
+    if children:
+        params["AGES"] = ",".join(str(age) for age in ages)
+        params["CHILDAviaChild"] = children
+        params["CHILDAviaInfant"] = 0
+
     try:
         response = requests.get(
             "https://api.anextour.ru/search",
@@ -2124,6 +2132,7 @@ def search_anex_tours(
                 "meal": str(tour.get("mealName") or ""),
                 "date": checkin.isoformat(), "nights": tour_nights,
                 "adults": adults, "children": children,
+                "child_ages": ages[:],
                 "price_rub": round(price),
                 "flight_type": "Не подтверждён",
                 "source": "https://anextour.ru/",
@@ -2284,6 +2293,7 @@ def understand_anex_request(messages):
                         "nights_max: integer или null,\n"
                         "adults: integer или null,\n"
                         "children: integer или null,\n"
+                        "child_ages: массив целых чисел или null,\n"
                         "budget_max: integer или null.\n"
                         "search_requested=true, если клиент просит "
                         "подобрать тур, изменить параметры прежнего подбора "
@@ -2292,6 +2302,9 @@ def understand_anex_request(messages):
                         "Для точного количества ночей nights_max=null.\n"
                         "Если сказано 'без детей', children=0.\n"
                         "Если дети не упомянуты, children=null.\n"
+                        "Если указан возраст каждого ребёнка, запиши его в child_ages в порядке упоминания, например [6, 3].\n"
+                        "Если дети есть, но хотя бы один возраст неизвестен, child_ages=null. Не придумывай возраст.\n"
+                        "Если детей нет, child_ages=[].\n"
                         "Не подставляй Москву, Турцию или 2 взрослых "
                         "без оснований в диалоге."
                     )
@@ -2364,18 +2377,45 @@ def ask_gpt(user_id, user_message):
             ).strip().lower()
 
             children = anex_params.get("children")
+            try:
+                children = int(children) if children is not None else 0
+            except (ValueError, TypeError):
+                children = -1
 
-            if children is None:
-                children = 0
-            if children == 0:
-            
+            child_ages = anex_params.get("child_ages")
+            if children < 0 or children > 3:
+                anex_context = (
+                    "\n\nУточни количество детей (не более трёх). "
+                    "Не рассчитывай цену до уточнения состава туристов."
+                )
+            elif children and (
+                not isinstance(child_ages, list)
+                or len(child_ages) != children
+            ):
+                anex_context = (
+                    "\n\nДля поиска тура с детьми уточни возраст "
+                    "каждого ребёнка на дату поездки. "
+                    "Не называй цену тура для взрослых ценой семейного тура."
+                )
+            elif children and any(
+                not isinstance(age, int) or age < 2 or age > 17
+                for age in child_ages
+            ):
+                anex_context = (
+                    "\n\nАвтоматический поиск ANEX пока поддерживает "
+                    "детей от 2 до 17 лет. Для ребёнка младше 2 лет "
+                    "не рассчитывай цену через этот поиск: правила "
+                    "младенческих тарифов ещё не подтверждены."
+                )
+            else:
                 search_params = {
                     "departure_city": city,
                     "country": country,
                     "departure_date": anex_params["departure_date"],
                     "nights": anex_params["nights"],
                     "adults": anex_params["adults"],
-                    "children": 0,
+                    "children": children,
+                    "child_ages": child_ages if children else [],
                     "limit": 5
                 }
 
@@ -2387,52 +2427,31 @@ def ask_gpt(user_id, user_message):
 
                 for key in optional:
                     value = anex_params.get(key)
-
                     if value is not None:
                         search_params[key] = value
 
-                anex_tours = search_anex_tours(
-                    **search_params
-                )
+                anex_tours = search_anex_tours(**search_params)
 
                 if anex_tours:
                     anex_context = (
                         "\n\nРЕЗУЛЬТАТЫ ПОИСКА ANEX:\n"
-                        + json.dumps(
-                            anex_tours,
-                            ensure_ascii=False,
-                            indent=2
-                        )
-                        + "\n\nИспользуй эти предложения "
-                        "для ответа клиенту.\n"
-                        "Не изменяй цены, даты, номера и питание.\n"
-                        "Не называй перелёт чартерным "
-                        "без подтверждения.\n"
-                        "Не утверждай, что цена бронирования "
-                        "окончательно подтверждена.\n"
+                        + json.dumps(anex_tours, ensure_ascii=False, indent=2)
+                        + "\n\nИспользуй эти предложения для ответа клиенту.\n"
+                        "Не изменяй цены, даты, номера, питание и возраст детей.\n"
+                        "Цена получена для указанного количества взрослых и детей "
+                        "с переданными в запрос возрастами; окончательная "
+                        "стоимость и наличие требуют подтверждения.\n"
+                        "Не называй перелёт чартерным без подтверждения.\n"
                         "Не заменяй эти цены оценками из интернета.\n"
                         "Предлагай разные отели.\n"
-                        "Не отправляй клиента к менеджеру "
-                        "вместо показа найденных вариантов."
+                        "Не отправляй клиента к менеджеру вместо показа вариантов."
                     )
-
                 else:
                     anex_context = (
                         "\n\nПоиск ANEX выполнен, но подходящие "
-                        "предложения не получены. "
-                        "Не выдумывай цены. "
+                        "предложения не получены. Не выдумывай цены. "
                         "Не утверждай, что туров вообще нет."
                     )
-
-            else:
-                anex_context = (
-                    "\n\nПараметры клиента распознаны, "
-                    "но автоматический поиск ANEX "
-                    "пока поддерживает только вылет "
-                    "из Москвы в Турцию без детей. "
-                    "Не выдавай цены по другим направлениям "
-                    "за результаты Python-поиска ANEX."
-                )
 
         else:
             anex_context = (
