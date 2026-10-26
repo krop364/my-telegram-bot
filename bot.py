@@ -2103,6 +2103,19 @@ def search_anex_tours(
         if not isinstance(prices, list):
             return []
         cheapest_by_hotel = {}
+        print(
+        "🔎 ANEX ДЕТИ: получено предложений =",
+        len(prices),
+        "| первый состав =",
+        {
+            "adult": prices[0].get("adult"),
+            "child": prices[0].get("child"),
+            "checkIn": prices[0].get("checkIn"),
+            "nights": prices[0].get("nights"),
+            "price": prices[0].get("additional_price"),
+        } if prices and isinstance(prices[0], dict) else None,
+        flush=True
+        )
         for tour in prices:
             if not isinstance(tour, dict):
                 continue
