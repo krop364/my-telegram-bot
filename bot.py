@@ -2093,7 +2093,7 @@ def search_anex_tours(
         params["AGES"] = ",".join(str(age) for age in ages)
         params["CHILDAviaChild"] = children
         params["CHILDAviaInfant"] = 0
-        params["STATEINC"] = state_id
+        params["STATEINC"] = country_code
 
     try:
         response = requests.get(
