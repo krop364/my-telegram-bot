@@ -1300,12 +1300,6 @@ def send_max_group_message(text, contact_user_id=None):
     )
 
     response.raise_for_status()
-    print("🔎 ANEX URL:", response.url, flush=True)
-    print(
-        "🔎 ANEX URL:",
-        response.url,
-        flush=True
-    )
     return response.json()
 def send_max_message(
     user_id,
@@ -2109,6 +2103,7 @@ def search_anex_tours(
             timeout=30,
         )
         response.raise_for_status()
+        print("🔎 ANEX URL:", response.url, flush=True)
         data = response.json()
         first = data[0] if isinstance(data, list) and data and isinstance(data[0], dict) else None
         print(
