@@ -2463,6 +2463,8 @@ def understand_anex_request(messages):
             flush=True
         )
         return None
+from bg_search import search_bg_tours
+
 def ask_gpt(user_id, user_message):
     history = get_history(
         user_id,
@@ -2560,6 +2562,7 @@ def ask_gpt(user_id, user_message):
                         search_params[key] = value
 
                 anex_tours = search_anex_tours(**search_params)
+                bg_tours = search_bg_tours(**search_params)
 
                 if anex_tours:
                     anex_context = (
@@ -2595,6 +2598,13 @@ def ask_gpt(user_id, user_message):
                 + ". Уточни только недостающие данные. "
                 "Не придумывай параметры."
             )
+    if 'bg_tours' in locals() and bg_tours:
+        anex_context += (
+            "\n\nПРЕДЛОЖЕНИЯ БИБЛИО-ГЛОБУС (предварительные цены):\n"
+            + json.dumps(bg_tours, ensure_ascii=False, indent=2)
+            + "\nПоказывай только эти предложения BG со ссылкой source. "
+              "Наличие и окончательную цену необходимо подтвердить.\n"
+        )
     try:
         response = openai_client.responses.create(
             model="gpt-5-mini",
