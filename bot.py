@@ -2068,9 +2068,16 @@ def get_anex_hotel_rating(hotel_id):
             rating = float(hotel.get("rate") or 0)
             reviews = int(float(hotel.get("ratesCount") or 0))
 
+            slug = str(hotel.get("slug") or "").strip()
+
             return {
                 "rating": rating,
                 "reviews": reviews,
+                "hotel_url": (
+                    "https://anextour.ru" + slug
+                    if slug.startswith("/hotels/")
+                    else None
+                ),
             }
 
     except Exception as e:
@@ -2247,7 +2254,10 @@ def search_anex_tours(
 
             item["rating"] = round(rating, 2)
             item["reviews_count"] = reviews
-
+            item["source"] = (
+                rating_data.get("hotel_url")
+                or "https://anextour.ru/"
+            )
             filtered_hotels.append(item)
 
         result = sorted(
@@ -2563,7 +2573,7 @@ def ask_gpt(user_id, user_message):
                         "стоимость и наличие требуют подтверждения.\n"
                         "Не называй перелёт чартерным без подтверждения.\n"
                         "Не заменяй эти цены оценками из интернета.\n"
-                        "Предлагай разные отели.\n"
+                        "Для каждого отеля обязательно показывай ссылку из поля source. "
                         "Не отправляй клиента к менеджеру вместо показа вариантов."
                     )
                 else:
