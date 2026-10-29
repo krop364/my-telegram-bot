@@ -152,6 +152,23 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
             for entry in entries:
                 if not isinstance(entry, dict):
                     continue
+                # Проверяем, что предложение содержит перелёт и проживание.
+                composition = entry.get('tourComposition', [])
+            
+                if not isinstance(composition, list):
+                    continue
+            
+                component_types = {
+                    str(component.get('type', '')).lower()
+                    for component in composition
+                    if isinstance(component, dict)
+                }
+            
+                if 'flight' not in component_types:
+                    continue
+            
+                if not ({'accomodation', 'accommodation'} & component_types):
+                    continue
                 hid = str(entry.get('id_hotel', ''))
                 if hid not in allowed:
                     continue
