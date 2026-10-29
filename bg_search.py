@@ -157,6 +157,15 @@ def _search_bg_tours_impl(departure_city, country, departure_date, nights, adult
                 try:
                     generic = _get_entries(day, night_count, passenger_code, group, -1) or []
                     diagnostics["generic"] += len(generic)
+                    if generic:
+                        sample = generic[0]
+                        print(
+                            'BG SAMPLE:',
+                            'id_price =', sample.get('id_price'),
+                            'composition =', sample.get('tourComposition'),
+                            'prices =', sample.get('prices', [])[:1],
+                            flush=True
+                        )
                     valid = [e for e in generic if has_full_package(e)]
                     diagnostics["generic_package"] += len(valid)
                     entries.extend(valid)
