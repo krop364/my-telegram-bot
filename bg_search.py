@@ -66,9 +66,17 @@ def _get_entries(day, nights, passenger_code, hotel_ids, price_id):
                             headers=HEADERS, timeout=25)
     response.raise_for_status()
     data = response.json()
+    
     if not isinstance(data, dict) or not isinstance(data.get('entries'), list):
+        print(
+            'BG UNEXPECTED RESPONSE:',
+            'status =', response.status_code,
+            'type =', type(data).__name__,
+            'keys =', list(data.keys()) if isinstance(data, dict) else 'not a dict',
+            'preview =', str(data)[:500],
+            flush=True
+        )
         raise ValueError('BG: unexpected price response')
-    return data['entries']
 
 
 def search_bg_tours(departure_city, country, departure_date, nights, adults,
