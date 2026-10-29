@@ -129,45 +129,54 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
 
             ids = list(allowed)
             entries = []
+            diagnostics = {"generic": 0, "generic_package": 0,
+                           "specific": 0, "specific_package": 0}
+
+            def has_full_package(entry):
+                if not isinstance(entry, dict):
+                    return False
+                composition = entry.get('tourComposition')
+                if not isinstance(composition, list):
+                    return False
+                types = {
+                    str(component.get('type', '')).strip().lower()
+                    for component in composition if isinstance(component, dict)
+                }
+                # A package must contain flights AND accommodation.
+                return ('flight' in types and
+                        bool({'accomodation', 'accommodation'} & types))
+
             for i in range(0, len(ids), CHUNK_SIZE):
                 group = ids[i:i + CHUNK_SIZE]
                 try:
-                    # -1 is seen in BG's multi-hotel requests; compatibility is
-                    # checked by the response, not assumed.
-                    batch = _get_entries(day, night_count, passenger_code, group, -1)
-                    entries.extend(batch)
+                    generic = _get_entries(day, night_count, passenger_code, group, -1)
+                    diagnostics["generic"] += len(generic)
+                    valid = [e for e in generic if has_full_package(e)]
+                    diagnostics["generic_package"] += len(valid)
+                    entries.extend(valid)
                 except (requests.RequestException, ValueError) as exc:
-                    print('BG batch request error:', type(exc).__name__, str(exc)[:160], flush=True)
+                    print('BG broad request error:', type(exc).__name__,
+                          str(exc)[:160], flush=True)
 
-            # If the broader request returns nothing, keep the proven package query.
-            if not entries:
+                # A broad search can return hotel-only offers.
+                # Request the known flight-package ID for the same hotels.
                 try:
-                    entries = _get_entries(day, night_count, passenger_code,
-                                           list(KNOWN_HOTELS), '121116223474')
-                    print('BG used verified fallback', flush=True)
+                    specific = _get_entries(day, night_count, passenger_code,
+                                            group, '121116223474')
+                    diagnostics["specific"] += len(specific)
+                    valid = [e for e in specific if has_full_package(e)]
+                    diagnostics["specific_package"] += len(valid)
+                    entries.extend(valid)
                 except (requests.RequestException, ValueError) as exc:
-                    print('BG fallback error:', type(exc).__name__, str(exc)[:160], flush=True)
-                    continue
+                    print('BG flight-package request error:', type(exc).__name__,
+                          str(exc)[:160], flush=True)
+
+            print('BG package diagnostics:', diagnostics, flush=True)
 
             for entry in entries:
                 if not isinstance(entry, dict):
                     continue
-                # Проверяем, что предложение содержит перелёт и проживание.
-                composition = entry.get('tourComposition', [])
-            
-                if not isinstance(composition, list):
-                    continue
-            
-                component_types = {
-                    str(component.get('type', '')).lower()
-                    for component in composition
-                    if isinstance(component, dict)
-                }
-            
-                if 'flight' not in component_types:
-                    continue
-            
-                if not ({'accomodation', 'accommodation'} & component_types):
+                if not has_full_package(entry):
                     continue
                 hid = str(entry.get('id_hotel', ''))
                 if hid not in allowed:
