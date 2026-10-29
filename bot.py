@@ -2228,7 +2228,7 @@ def search_anex_tours(
             previous = cheapest_by_hotel.get(hotel_key)
             if previous is None or price < previous["price_rub"]:
                 cheapest_by_hotel[hotel_key] = item
-                filtered_hotels = []
+        filtered_hotels = []
         rating_cache = {}
 
         for item in cheapest_by_hotel.values():
