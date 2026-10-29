@@ -1,5 +1,5 @@
 """Осторожный поиск BG: пока только Казань -> Египет, проверенные коды туристов.
-Отели без подтверждённого рейтинга и количества отзывов не показываются.
+Тестовый режим: отели без рейтинга показываются с явной пометкой.
 """
 import json
 from datetime import date
@@ -57,8 +57,12 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
                 allowed[hotel_id] = (name, record)
         except (TypeError, ValueError):
             pass
+    # Тестовый режим: допускаем отели без рейтинга, но не выдумываем оценку.
+    # Отели с известным рейтингом ниже порога исключаем.
+    for hotel_id, name in HOTELS.items():
+        if hotel_id not in allowed and hotel_id not in ratings:
+            allowed[hotel_id] = (name, None)
     if not allowed:
-        print('BG: нет отелей с проверенными рейтингами — не показываем предложения', flush=True)
         return []
 
     p = '.'.join([ADULT_CODE] * adults + [AGE_CODES[a] for a in ages])
@@ -110,7 +114,8 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
                         'room': str(entry.get('room', '')),
                         'meal': 'AI' if str(entry.get('room', '')).upper().endswith(' AI') else 'Не уточнено',
                         'price_rub': price, 'age_category': price_info.get('ag'),
-                        'rating': float(rating['rating']), 'reviews_count': int(rating['reviews']),
+                        'rating': float(rating['rating']) if rating else None,
+                        'reviews_count': int(rating['reviews']) if rating else None,
                         'flight_type': 'Не подтверждён',
                         'source': BASE + '/price.shtml?' + urlencode([
                             ('action', 'price'), ('tid', '211'), ('flt', '100410000047'),
