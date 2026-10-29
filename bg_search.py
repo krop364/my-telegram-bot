@@ -18,20 +18,26 @@ KNOWN_HOTELS = {
 }
 AGE_CODES = {3: '0071020230', 6: '0071020200'}
 ADULT_CODE = '0071019900'
+# Verified browser parameters for two specific dates/routes only.
+VERIFIED_ROUTES = {
+    ('2026-11-07', 9): [('Sharm el-Sheikh', '121116223474', '007')],
+    ('2026-11-15', 8): [('Hurghada', '121110246682', '015')],
+}
+
 HEADERS = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/json,*/*'}
 # Limit work so one chat message cannot launch hundreds of HTTP requests.
 MAX_HOTELS = 90
 CHUNK_SIZE = 30
 
 
-def _discover_hotels(day, nights, passenger_code):
+def _discover_hotels(day, nights, passenger_code, price_id):
     """Find BG's [hotel_id, {'n':'Hotel name'}] structures in public HTML.
 
     The page format can change; no claim of completeness is made.
     """
     params = [
         ('action', 'price'), ('tid', '211'), ('flt', '100410000047'),
-        ('flt2', '100510345650'), ('id_price', '121116223474'),
+        ('flt2', '100510345650'), ('id_price', str(price_id)),
         ('data', day), ('d2', day), ('f7', str(nights)), ('p', passenger_code),
     ]
     response = requests.get(BASE + '/price.shtml', params=params,
@@ -68,11 +74,8 @@ def _get_entries(day, nights, passenger_code, hotel_ids, price_id):
     data = response.json()
     entries = data.get('entries') if isinstance(data, dict) else None
     if not isinstance(entries, list):
-        print(
-            'BG SERVER RESPONSE:',
-            'error =', str(data.get('ERROR'))[:500] if isinstance(data, dict) else str(data)[:500],
-            flush=True
-        )
+        print('BG server error:', str(data.get('ERROR'))[:180] if isinstance(data, dict) else type(data).__name__,
+              flush=True)
         return []
     return entries
 
@@ -98,7 +101,11 @@ def _search_bg_tours_impl(departure_city, country, departure_date, nights, adult
             or any(a not in AGE_CODES for a in ages) or not 1 <= limit <= 20):
         return []
 
-    passenger_code = '.'.join([ADULT_CODE] * adults + [AGE_CODES[a] for a in ages])
+    # The first three digits are observed to differ by departure date.
+    # Use only captured combinations; do not infer a general encoding rule.
+    if (start.isoformat(), nights) not in VERIFIED_ROUTES and start == end and nights == max_nights:
+        print('BG: no verified flight route for requested date/nights', flush=True)
+        return []
     try:
         ratings = json.loads(Path(__file__).with_name('bg_ratings.json').read_text(encoding='utf-8'))
     except (OSError, ValueError):
@@ -111,9 +118,24 @@ def _search_bg_tours_impl(departure_city, country, departure_date, nights, adult
         day_obj = date.fromordinal(start.toordinal() + offset)
         day = day_obj.strftime('%d.%m.%Y')
         for night_count in range(nights, max_nights + 1):
+            routes = VERIFIED_ROUTES.get((day_obj.isoformat(), night_count), [])
+            for route_name, route_id, prefix in routes:
+                passenger_code = '.'.join(
+                    [prefix + ADULT_CODE[3:]] * adults +
+                    [prefix + AGE_CODES[a][3:] for a in ages]
+                )
+                print('BG route:', route_name, 'id_price:', route_id, 'date:', day, 'nights:', night_count, flush=True)
+                _run_route(day, night_count, passenger_code, route_id, day_obj,
+                           ages, adults, children, budget, ratings, best)
+    print('BG unique hotels with prices:', len(best), flush=True)
+    return sorted(best.values(), key=lambda item: item['price_rub'])[:limit]
+
+
+def _run_route(day, night_count, passenger_code, route_id, day_obj, ages,
+               adults, children, budget, ratings, best):
             hotels = dict(KNOWN_HOTELS)
             try:
-                discovered = _discover_hotels(day, night_count, passenger_code)
+                discovered = _discover_hotels(day, night_count, passenger_code, route_id)
                 # Prioritize known hotel IDs and then other IDs found on the page.
                 for hid, name in discovered.items():
                     if len(hotels) >= MAX_HOTELS:
@@ -152,32 +174,13 @@ def _search_bg_tours_impl(departure_city, country, departure_date, nights, adult
                 return ('flight' in types and
                         bool({'accomodation', 'accommodation'} & types))
 
+            # Only query the flight route captured from the actual BG constructor.
+            # Never mix in id_price=-1 (hotel-only prices).
             for i in range(0, len(ids), CHUNK_SIZE):
                 group = ids[i:i + CHUNK_SIZE]
                 try:
-                    generic = _get_entries(day, night_count, passenger_code, group, -1) or []
-                    diagnostics["generic"] += len(generic)
-                    if generic:
-                        sample = generic[0]
-                        print(
-                            'BG SAMPLE:',
-                            'id_price =', sample.get('id_price'),
-                            'composition =', sample.get('tourComposition'),
-                            'prices =', sample.get('prices', [])[:1],
-                            flush=True
-                        )
-                    valid = [e for e in generic if has_full_package(e)]
-                    diagnostics["generic_package"] += len(valid)
-                    entries.extend(valid)
-                except (requests.RequestException, ValueError) as exc:
-                    print('BG broad request error:', type(exc).__name__,
-                          str(exc)[:160], flush=True)
-
-                # A broad search can return hotel-only offers.
-                # Request the known flight-package ID for the same hotels.
-                try:
                     specific = _get_entries(day, night_count, passenger_code,
-                                            group, '121116223474') or []
+                                            group, route_id) or []
                     diagnostics["specific"] += len(specific)
                     valid = [e for e in specific if has_full_package(e)]
                     diagnostics["specific_package"] += len(valid)
@@ -210,7 +213,7 @@ def _search_bg_tours_impl(departure_city, country, departure_date, nights, adult
                         continue
                     room = str(entry.get('room', ''))
                     # Link to BG price page with this hotel and actual package id.
-                    actual_package = str(entry.get('id_price') or '121116223474')
+                    actual_package = str(entry.get('id_price') or route_id)
                     source = BASE + '/price.shtml?' + urlencode([
                         ('action', 'price'), ('tid', '211'),
                         ('flt', '100410000047'), ('flt2', '100510345650'),
@@ -231,8 +234,6 @@ def _search_bg_tours_impl(departure_city, country, departure_date, nights, adult
                     key = hid  # best offer per hotel
                     if key not in best or amount < best[key]['price_rub']:
                         best[key] = item
-    print('BG unique hotels with prices:', len(best), flush=True)
-    return sorted(best.values(), key=lambda item: item['price_rub'])[:limit]
 
 
 def search_bg_tours(*args, **kwargs):
