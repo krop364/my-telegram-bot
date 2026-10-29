@@ -94,3 +94,99 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
 
     passenger_code = '.'.join([ADULT_CODE] * adults + [AGE_CODES[a] for a in ages])
     try:
+        ratings = json.loads(Path(__file__).with_name('bg_ratings.json').read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        ratings = {}
+    if not isinstance(ratings, dict):
+        ratings = {}
+
+    best = {}
+    for offset in range((end - start).days + 1):
+        day_obj = date.fromordinal(start.toordinal() + offset)
+        day = day_obj.strftime('%d.%m.%Y')
+        for night_count in range(nights, max_nights + 1):
+            hotels = dict(KNOWN_HOTELS)
+            try:
+                discovered = _discover_hotels(day, night_count, passenger_code)
+                # Prioritize known hotel IDs and then other IDs found on the page.
+                for hid, name in discovered.items():
+                    if len(hotels) >= MAX_HOTELS:
+                        break
+                    hotels[hid] = name
+            except (requests.RequestException, ValueError) as exc:
+                print('BG hotel discovery error:', type(exc).__name__, str(exc)[:160], flush=True)
+
+            allowed = {}
+            for hid, name in hotels.items():
+                rating = ratings.get(hid)
+                if rating is not None:
+                    try:
+                        if float(rating['rating']) <= 3.5 or int(rating['reviews']) <= 100:
+                            continue
+                    except (TypeError, KeyError, ValueError):
+                        continue
+                allowed[hid] = (name, rating)
+
+            ids = list(allowed)
+            entries = []
+            for i in range(0, len(ids), CHUNK_SIZE):
+                group = ids[i:i + CHUNK_SIZE]
+                try:
+                    # -1 is seen in BG's multi-hotel requests; compatibility is
+                    # checked by the response, not assumed.
+                    batch = _get_entries(day, night_count, passenger_code, group, -1)
+                    entries.extend(batch)
+                except (requests.RequestException, ValueError) as exc:
+                    print('BG batch request error:', type(exc).__name__, str(exc)[:160], flush=True)
+
+            # If the broader request returns nothing, keep the proven package query.
+            if not entries:
+                try:
+                    entries = _get_entries(day, night_count, passenger_code,
+                                           list(KNOWN_HOTELS), '121116223474')
+                    print('BG used verified fallback', flush=True)
+                except (requests.RequestException, ValueError) as exc:
+                    print('BG fallback error:', type(exc).__name__, str(exc)[:160], flush=True)
+                    continue
+
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                hid = str(entry.get('id_hotel', ''))
+                if hid not in allowed:
+                    continue
+                if entry.get('dt') != day or str(entry.get('duration')) != str(night_count):
+                    continue
+                name, rating = allowed[hid]
+                for offer in entry.get('prices', []):
+                    try:
+                        amount = int(float(offer['RUR']))
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if amount <= 0 or (budget is not None and amount > budget):
+                        continue
+                    room = str(entry.get('room', ''))
+                    # Link to BG price page with this hotel and actual package id.
+                    actual_package = str(entry.get('id_price') or '121116223474')
+                    source = BASE + '/price.shtml?' + urlencode([
+                        ('action', 'price'), ('tid', '211'),
+                        ('flt', '100410000047'), ('flt2', '100510345650'),
+                        ('id_price', actual_package), ('data', day), ('d2', day),
+                        ('f7', str(night_count)), ('F4', hid), ('p', passenger_code),
+                    ])
+                    item = {
+                        'operator': 'Библио-Глобус', 'hotel': name, 'hotel_id': hid,
+                        'date': day_obj.isoformat(), 'nights': night_count,
+                        'adults': adults, 'children': children, 'child_ages': ages[:],
+                        'room': room,
+                        'meal': 'AI' if room.upper().endswith(' AI') else 'Не уточнено',
+                        'price_rub': amount, 'age_category': offer.get('ag'),
+                        'rating': float(rating['rating']) if rating else None,
+                        'reviews_count': int(rating['reviews']) if rating else None,
+                        'flight_type': 'Не подтверждён', 'source': source,
+                    }
+                    key = hid  # best offer per hotel
+                    if key not in best or amount < best[key]['price_rub']:
+                        best[key] = item
+    print('BG unique hotels with prices:', len(best), flush=True)
+    return sorted(best.values(), key=lambda item: item['price_rub'])[:limit]
