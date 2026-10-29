@@ -2603,7 +2603,7 @@ def ask_gpt(user_id, user_message):
             "\n\nПРЕДЛОЖЕНИЯ БИБЛИО-ГЛОБУС (предварительные цены):\n"
             + json.dumps(bg_tours, ensure_ascii=False, indent=2)
             + "\nПоказывай только эти предложения BG со ссылкой source. "
-              "Наличие и окончательную цену необходимо подтвердить.\n"
+              "Если rating=null, прямо скажи, что рейтинг и отзывы не проверены. Наличие и окончательную цену необходимо подтвердить.\n"
         )
     try:
         response = openai_client.responses.create(
