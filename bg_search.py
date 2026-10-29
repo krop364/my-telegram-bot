@@ -68,10 +68,11 @@ def _get_entries(day, nights, passenger_code, hotel_ids, price_id):
     data = response.json()
     entries = data.get('entries') if isinstance(data, dict) else None
     if not isinstance(entries, list):
-        print('BG response without entries:',
-              'type=', type(data).__name__,
-              'keys=', list(data)[:12] if isinstance(data, dict) else 'none',
-              flush=True)
+        print(
+            'BG SERVER RESPONSE:',
+            'error =', str(data.get('ERROR'))[:500] if isinstance(data, dict) else str(data)[:500],
+            flush=True
+        )
         return []
     return entries
 
