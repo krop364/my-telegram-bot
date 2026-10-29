@@ -66,20 +66,17 @@ def _get_entries(day, nights, passenger_code, hotel_ids, price_id):
                             headers=HEADERS, timeout=25)
     response.raise_for_status()
     data = response.json()
-    
-    if not isinstance(data, dict) or not isinstance(data.get('entries'), list):
-        print(
-            'BG UNEXPECTED RESPONSE:',
-            'status =', response.status_code,
-            'type =', type(data).__name__,
-            'keys =', list(data.keys()) if isinstance(data, dict) else 'not a dict',
-            'preview =', str(data)[:500],
-            flush=True
-        )
-        raise ValueError('BG: unexpected price response')
+    entries = data.get('entries') if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        print('BG response without entries:',
+              'type=', type(data).__name__,
+              'keys=', list(data)[:12] if isinstance(data, dict) else 'none',
+              flush=True)
+        return []
+    return entries
 
 
-def search_bg_tours(departure_city, country, departure_date, nights, adults,
+def _search_bg_tours_impl(departure_city, country, departure_date, nights, adults,
                     children=0, limit=5, departure_date_end=None,
                     nights_max=None, budget_max=None, child_ages=None):
     if departure_city.strip().casefold() != 'казань' or country.strip().casefold() != 'египет':
@@ -157,7 +154,7 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
             for i in range(0, len(ids), CHUNK_SIZE):
                 group = ids[i:i + CHUNK_SIZE]
                 try:
-                    generic = _get_entries(day, night_count, passenger_code, group, -1)
+                    generic = _get_entries(day, night_count, passenger_code, group, -1) or []
                     diagnostics["generic"] += len(generic)
                     valid = [e for e in generic if has_full_package(e)]
                     diagnostics["generic_package"] += len(valid)
@@ -170,7 +167,7 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
                 # Request the known flight-package ID for the same hotels.
                 try:
                     specific = _get_entries(day, night_count, passenger_code,
-                                            group, '121116223474')
+                                            group, '121116223474') or []
                     diagnostics["specific"] += len(specific)
                     valid = [e for e in specific if has_full_package(e)]
                     diagnostics["specific_package"] += len(valid)
@@ -192,7 +189,9 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
                 if entry.get('dt') != day or str(entry.get('duration')) != str(night_count):
                     continue
                 name, rating = allowed[hid]
-                for offer in entry.get('prices', []):
+                for offer in (entry.get('prices') or []):
+                    if not isinstance(offer, dict):
+                        continue
                     try:
                         amount = int(float(offer['RUR']))
                     except (KeyError, TypeError, ValueError):
@@ -224,3 +223,14 @@ def search_bg_tours(departure_city, country, departure_date, nights, adults,
                         best[key] = item
     print('BG unique hotels with prices:', len(best), flush=True)
     return sorted(best.values(), key=lambda item: item['price_rub'])[:limit]
+
+
+def search_bg_tours(*args, **kwargs):
+    """Keep BG errors from crashing the entire Telegram/MAX message handler."""
+    try:
+        return _search_bg_tours_impl(*args, **kwargs)
+    except Exception as exc:
+        import traceback
+        print('BG SEARCH FAILED:', type(exc).__name__, str(exc), flush=True)
+        traceback.print_exc()
+        return []
