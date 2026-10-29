@@ -21,7 +21,8 @@ ADULT_CODE = '0071019900'
 # Verified browser parameters for two specific dates/routes only.
 VERIFIED_ROUTES = {
     ('2026-11-07', 9): [('Sharm el-Sheikh', '121116223474', '007')],
-    ('2026-11-15', 8): [('Hurghada', '121110246682', '015')],
+    ('2026-11-15', 8): [('Hurghada', '121110246682', '015'),
+                       ('Sharm el-Sheikh', '121110211282', '015')],
 }
 
 HEADERS = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/json,*/*'}
@@ -37,8 +38,9 @@ def _discover_hotels(day, nights, passenger_code, price_id):
     """
     params = [
         ('action', 'price'), ('tid', '211'), ('flt', '100410000047'),
-        ('flt2', '100510345650'), ('id_price', str(price_id)),
-        ('data', day), ('d2', day), ('f7', str(nights)), ('p', passenger_code),
+        ('flt2', '100510345650'), ('bfr', '1'),
+        ('id_price', str(price_id)), ('data', day), ('d2', day), ('f7', str(nights)),
+        ('ho', '0'), ('ins', '15-40000-USD'), ('p', passenger_code),
     ]
     response = requests.get(BASE + '/price.shtml', params=params,
                             headers=HEADERS, timeout=20)
@@ -63,8 +65,9 @@ def _get_entries(day, nights, passenger_code, hotel_ids, price_id):
     params = [
         ('xml', '31'), ('action', 'price'), ('tid', '211'),
         ('flt', '100410000047'), ('flt2', '100510345650'),
-        ('id_price', str(price_id)), ('data', day), ('d2', day),
-        ('f7', str(nights)),
+        ('bfr', '1'), ('id_price', str(price_id)),
+        ('data', day), ('d2', day), ('f7', str(nights)),
+        ('ho', '0'), ('ins', '15-40000-USD'),
         *[('F4', hotel_id) for hotel_id in hotel_ids],
         ('p', passenger_code),
     ]
