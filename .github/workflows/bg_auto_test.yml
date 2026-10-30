@@ -12,34 +12,5 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install requests
-      - name: Test automatic route search
-        run: |
-          python - <<'PY'
-          from bg_search_auto_experimental import search_bg_tours
-
-          for day, nights in [
-              ("2026-11-15", 8),
-              ("2026-11-20", 8),
-              ("2026-11-25", 9),
-          ]:
-              print(f"\n=== TEST {day}, {nights} nights ===", flush=True)
-              tours = search_bg_tours(
-                  departure_city="Казань",
-                  country="Египет",
-                  departure_date=day,
-                  nights=nights,
-                  adults=2,
-                  children=2,
-                  child_ages=[3, 6],
-                  limit=3,
-              )
-              print("RESULTS:", len(tours), flush=True)
-              for tour in tours:
-                  print(
-                      tour["hotel"],
-                      tour["date"],
-                      tour["nights"],
-                      tour["price_rub"],
-                      flush=True,
-                  )
-          PY
+      - name: Test BG diagnostics
+        run: python bg_next_probe.py
