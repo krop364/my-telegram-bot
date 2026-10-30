@@ -1,143 +1,117 @@
-import re
-import html
-import requests
-from collections import Counter
-from urllib.parse import parse_qs, urlparse
+"""BG passenger-code probe. Run: python bg_routes_matrix.py
 
-URL = "https://www.bgoperator.ru/site"
+No requests are sent and no bot files are modified.
+"""
 
-PARAMS = {
-    "action": "price",
-    "tid": "211",
-    "flt": "100410000047",
-    "flt2": "100510345650",
-    "bfr": "1",
-    "data": "15.11.2026",
-    "d2": "15.11.2026",
-    "f7": "8",
-    "ho": "0",
-    "ins": "15-40000-USD",
+from datetime import datetime
+
+
+KNOWN = {
+    ("2026-11-15", 36): "0151019900",
+    ("2026-11-15", 7): "0151020190",
+    ("2026-11-15", 8): "0151020180",
+    ("2026-11-15", 15): "0151020110",
 }
 
-session = requests.Session()
-session.headers["User-Agent"] = "Mozilla/5.0"
 
-response = session.get(URL, params=PARAMS, timeout=60)
-response.raise_for_status()
+def candidate_code(date_iso: str, age: int) -> str:
+    """EXPERIMENTAL: derived only from observed November 2026 examples."""
 
-page = html.unescape(response.text)
+    date = datetime.strptime(date_iso, "%Y-%m-%d")
 
-print("HTTP:", response.status_code)
-print("PAGE LENGTH:", len(page))
+    if not 0 <= age <= 99:
+        raise ValueError("Возраст должен быть от 0 до 99")
 
+    prefix = f"{date.day:03d}"
 
-def parse_link(value):
-    value = html.unescape(value)
+    if age >= 18:
+        return prefix + "1019900"
 
-    if "?" in value:
-        query = urlparse(value).query
-    else:
-        query = value.lstrip("&")
-
-    return parse_qs(query, keep_blank_values=True)
+    return prefix + f"1020{26 - age:02d}0"
 
 
-print("\n=== BOOKING LINKS ===")
+def build_p(date_iso: str, ages: list[int]) -> str:
+    if not ages:
+        raise ValueError("Укажите хотя бы одного туриста")
 
-links = re.findall(
-    r'(?:href|urr)=["\']([^"\']+)["\']',
-    page,
-    flags=re.I,
-)
-
-booking = []
-seen = set()
-
-for link in links:
-    params = parse_link(link)
-
-    if "p" not in params:
-        continue
-
-    signature = (
-        tuple(params.get("p", [])),
-        tuple(params.get("kol", [])),
-        tuple(params.get("c", [])),
-        tuple(params.get("otn", [])),
-        tuple(params.get("id_price", [])),
+    return ".".join(
+        candidate_code(date_iso, age)
+        for age in ages
     )
 
-    if signature in seen:
-        continue
 
-    seen.add(signature)
-    booking.append(params)
-
-print("UNIQUE BOOKING PARAMETER SETS:", len(booking))
-
-for index, params in enumerate(booking[:8], 1):
-    print("\nBOOKING", index)
-
-    for key in (
-        "p", "kol", "c", "otn", "sr",
-        "cntr", "dt", "id_price",
-        "x", "otv", "repl", "templ",
-    ):
-        if key in params:
-            print(key, "=", params[key])
-
-
-print("\n=== PARAMETER FREQUENCIES ===")
-
-for key in ("p", "kol", "c", "otn", "sr", "cntr"):
-    counts = Counter()
-
-    for link in links:
-        params = parse_link(link)
-
-        for value in params.get(key, []):
-            counts[value] += 1
-
-    print(key, ":", counts.most_common(10))
+CASES = [
+    (
+        "2026-11-15",
+        [36, 36],
+        "0151019900.0151019900",
+    ),
+    (
+        "2026-11-15",
+        [36, 36, 15],
+        "0151019900.0151019900.0151020110",
+    ),
+    (
+        "2026-11-15",
+        [36, 36, 7],
+        "0151019900.0151019900.0151020190",
+    ),
+    (
+        "2026-11-15",
+        [36, 36, 8],
+        "0151019900.0151019900.0151020180",
+    ),
+    (
+        "2026-11-15",
+        [36, 8],
+        "0151019900.0151020180",
+    ),
+]
 
 
-print("\n=== TOURIST TEXT NEAR BOOKING LINKS ===")
+print("=== VERIFIED AGAINST USER-CAPTURED BG REQUESTS ===")
 
-shown = 0
+failures = 0
 
-for match in re.finditer(
-    r"2\s*взрослых\s*\([^)]*\)",
-    page,
-    flags=re.I,
-):
-    fragment = page[
-        max(0, match.start() - 180):
-        min(len(page), match.end() + 250)
-    ]
+for day, ages, expected in CASES:
+    actual = build_p(day, ages)
+    passed = actual == expected
 
-    fragment = re.sub(r"<[^>]+>", " ", fragment)
-    fragment = re.sub(r"\s+", " ", fragment).strip()
+    failures += not passed
 
-    print(fragment[:350])
-
-    shown += 1
-
-    if shown >= 5:
-        break
+    print(
+        f"{'PASS' if passed else 'FAIL'} "
+        f"date={day} ages={ages} p={actual}"
+    )
 
 
-print("\n=== FORM TAGS ===")
+print("\n=== HYPOTHESES — NOT VALIDATED BY BG ===")
 
-forms = re.findall(
-    r"<form\b[^>]*>",
-    page,
-    flags=re.I | re.S,
+for day, ages in [
+    ("2026-11-20", [36, 36, 7]),
+    ("2026-11-25", [36, 8, 15]),
+    ("2026-12-03", [36, 5]),
+    ("2026-11-15", [36, 1]),
+    ("2026-11-15", [36, 17]),
+]:
+    print(
+        f"UNVERIFIED "
+        f"date={day} "
+        f"ages={ages} "
+        f"p={build_p(day, ages)}"
+    )
+
+
+print(
+    f"\nRESULT: "
+    f"{len(CASES) - failures}/{len(CASES)} "
+    f"known examples matched"
 )
 
-print("FORMS:", len(forms))
+if failures:
+    raise SystemExit(1)
 
-for form in forms[:10]:
-    print(form[:400])
-
-
-print("\nDONE")
+print(
+    "WARNING: matching examples does NOT validate "
+    "arbitrary ages, months, or live prices."
+)
