@@ -1,101 +1,133 @@
 import re
+import html
 import requests
 from collections import Counter
-from urllib.parse import unquote, parse_qs
+from urllib.parse import urlparse, parse_qs
 
-BASE = "https://www.bgoperator.ru/site"
+URL = "https://www.bgoperator.ru/site"
 
-DATES = ["15.11.2026", "20.11.2026", "25.11.2026"]
+params = {
+    "action": "price",
+    "tid": "211",
+    "flt": "100410000047",
+    "flt2": "100510345650",
+    "bfr": "1",
+    "data": "15.11.2026",
+    "d2": "15.11.2026",
+    "f7": "8",
+    "ho": "0",
+    "ins": "15-40000-USD",
+}
 
 session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0",
-    "Accept": "text/html,application/xhtml+xml,*/*",
-})
+session.headers["User-Agent"] = "Mozilla/5.0"
+
+response = session.get(URL, params=params, timeout=60)
+response.raise_for_status()
+
+page = html.unescape(response.text)
+
+print("HTTP:", response.status_code)
+print("PAGE LENGTH:", len(page))
 
 
-def extract_values(html, key):
-    """Ищет значения параметра в URL и HTML-атрибутах."""
-    text = unquote(html)
-
-    patterns = [
-        rf"(?:[?&]|&amp;){re.escape(key)}=([^&\s\"'<>]+)",
-        rf'["\']{re.escape(key)}["\']\s*:\s*["\']([^"\']+)',
-        rf'["\']{re.escape(key)}["\']\s*,\s*["\']([^"\']+)',
-    ]
-
-    values = []
-    for pattern in patterns:
-        values.extend(re.findall(pattern, text, re.I))
-
-    return Counter(values)
+def clean(value):
+    value = re.sub(r"<[^>]+>", " ", value)
+    value = re.sub(r"\s+", " ", value)
+    return value.strip()[:300]
 
 
-def inspect_date(day):
-    params = {
-        "action": "price",
-        "tid": "211",
-        "flt": "100410000047",
-        "flt2": "100510345650",
-        "bfr": "1",
-        "data": day,
-        "d2": day,
-        "f7": "8",
-        "ho": "0",
-        "ins": "15-40000-USD",
-    }
+print("\n=== INPUTS AND SELECTS ===")
 
-    try:
-        response = session.get(BASE, params=params, timeout=40)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        print("REQUEST ERROR:", exc)
-        return
+tags = re.findall(
+    r"<(?:input|select|option|button)\b[^>]*>",
+    page,
+    flags=re.I | re.S,
+)
 
-    html = response.text
+interesting = (
+    "adult", "child", "age", "pax", "tourist",
+    "people", "person", "pass", "возраст",
+    "взрос", "дет", "количество", "p=",
+)
 
-    print("\nDATE:", day)
-    print("HTTP:", response.status_code)
-    print("HTML LENGTH:", len(html))
+found = []
+for tag in tags:
+    low = tag.lower()
+    if any(word in low for word in interesting):
+        found.append(clean(tag))
 
-    for key in ("p", "id_price", "F4", "f7"):
-        values = extract_values(html, key)
-        print(f"\n{key} VALUES:", len(values))
+for item in list(dict.fromkeys(found))[:60]:
+    print(item)
 
-        for value, count in values.most_common(12):
-            print(" ", repr(value[:180]), "COUNT:", count)
-
-    print("\nPASSENGER-RELATED FRAGMENTS:")
-
-    patterns = [
-        r".{0,100}(?:возраст|взросл|ребен|дети|турист).{0,140}",
-        r".{0,100}(?:child|adult|passenger|pax).{0,140}",
-    ]
-
-    found = set()
-
-    for pattern in patterns:
-        for fragment in re.findall(
-            pattern, html, flags=re.I | re.S
-        ):
-            cleaned = re.sub(r"\s+", " ", fragment)
-            cleaned = re.sub(r"<[^>]+>", " ", cleaned)
-
-            if cleaned not in found:
-                found.add(cleaned)
-                print(" ", cleaned[:240])
-
-            if len(found) >= 12:
-                break
-
-        if len(found) >= 12:
-            break
-
-    if not found:
-        print(" No passenger-related fragments found")
+print("MATCHING CONTROLS:", len(found))
 
 
-for date in DATES:
-    inspect_date(date)
+print("\n=== SCRIPT REFERENCES ===")
+
+scripts = re.findall(
+    r"<script\b[^>]*src=['\"]([^'\"]+)",
+    page,
+    flags=re.I,
+)
+
+for script in list(dict.fromkeys(scripts))[:35]:
+    print(script)
+
+
+print("\n=== PASSENGER CONTEXT ===")
+
+patterns = [
+    r"2\s*взрослых",
+    r"возраст[а-я]*",
+    r"турист[а-я]*",
+    r"количество\s+детей",
+]
+
+seen = set()
+
+for pattern in patterns:
+    for match in list(re.finditer(pattern, page, re.I))[:8]:
+        fragment = clean(
+            page[max(0, match.start() - 350):match.end() + 350]
+        )
+        if fragment not in seen:
+            seen.add(fragment)
+            print(fragment)
+
+
+print("\n=== PRICE LINKS: PARAMETER NAMES ===")
+
+keys = Counter()
+samples = []
+
+for match in re.finditer(
+    r'(?:href|urr)=["\']([^"\']+)',
+    page,
+    flags=re.I,
+):
+    link = html.unescape(match.group(1))
+    if "id_price=" not in link and "p=" not in link:
+        continue
+
+    query = urlparse(link).query
+    if not query and "?" not in link:
+        query = link.lstrip("&")
+
+    parsed = parse_qs(query)
+
+    keys.update(parsed.keys())
+
+    if len(samples) < 3:
+        samples.append({
+            key: value[:2]
+            for key, value in parsed.items()
+            if key in ("p", "id_price", "data", "d2", "f7", "q")
+        })
+
+print("PARAMETERS:", keys.most_common(30))
+
+for sample in samples:
+    print("SAMPLE:", sample)
 
 print("\nDONE")
