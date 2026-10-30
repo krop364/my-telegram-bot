@@ -28,6 +28,6 @@ jobs:
 
       - name: Check BG routes
         run: |
-          python ./bg_route_probe.py 2026-11-15 8
-          python ./bg_route_probe.py 2026-11-20 8
-          python ./bg_route_probe.py 2026-11-25 9
+          python bg_route_probe_v2.py 2026-11-15 8
+          python bg_route_probe_v2.py 2026-11-20 8
+          python bg_route_probe_v2.py 2026-11-25 9
