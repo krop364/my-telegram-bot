@@ -195,10 +195,6 @@ def _run_route(day, night_count, passenger_code, route_id, day_obj, ages,
             print('BG package diagnostics:', diagnostics, flush=True)
 
             rejection = {'hotel_id': 0, 'date_nights': 0, 'price': 0, 'accepted': 0}
-            example = next((e for e in entries if isinstance(e, dict)), None)
-            if example:
-                print('BG ENTRY FIELDS:', {k: example.get(k) for k in ('id_hotel', 'dt', 'tour_date', 'duration', 'id_price')},
-                      'prices:', str(example.get('prices'))[:250], flush=True)
             for entry in entries:
                 if not isinstance(entry, dict):
                     continue
@@ -208,7 +204,7 @@ def _run_route(day, night_count, passenger_code, route_id, day_obj, ages,
                 if hid not in allowed:
                     rejection['hotel_id'] += 1
                     continue
-                if (entry.get('dt') or entry.get('tour_date')) != day or str(entry.get('duration')) != str(night_count):
+                if (entry.get('tour_date') or entry.get('dt')) != day or str(entry.get('duration')) != str(night_count):
                     rejection['date_nights'] += 1
                     continue
                 name, rating = allowed[hid]
