@@ -1,0 +1,22 @@
+name: BG Route Discovery
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install requests
+
+      - name: Check BG routes
+        run: |
+          python bg_route_probe.py 2026-11-15 8
+          python bg_route_probe.py 2026-11-20 8
+          python bg_route_probe.py 2026-11-25 9
