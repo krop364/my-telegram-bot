@@ -2,11 +2,11 @@ import re
 import html
 import requests
 from collections import Counter
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 URL = "https://www.bgoperator.ru/site"
 
-params = {
+PARAMS = {
     "action": "price",
     "tid": "211",
     "flt": "100410000047",
@@ -22,7 +22,7 @@ params = {
 session = requests.Session()
 session.headers["User-Agent"] = "Mozilla/5.0"
 
-response = session.get(URL, params=params, timeout=60)
+response = session.get(URL, params=PARAMS, timeout=60)
 response.raise_for_status()
 
 page = html.unescape(response.text)
@@ -31,103 +31,113 @@ print("HTTP:", response.status_code)
 print("PAGE LENGTH:", len(page))
 
 
-def clean(value):
-    value = re.sub(r"<[^>]+>", " ", value)
-    value = re.sub(r"\s+", " ", value)
-    return value.strip()[:300]
+def parse_link(value):
+    value = html.unescape(value)
+
+    if "?" in value:
+        query = urlparse(value).query
+    else:
+        query = value.lstrip("&")
+
+    return parse_qs(query, keep_blank_values=True)
 
 
-print("\n=== INPUTS AND SELECTS ===")
+print("\n=== BOOKING LINKS ===")
 
-tags = re.findall(
-    r"<(?:input|select|option|button)\b[^>]*>",
+links = re.findall(
+    r'(?:href|urr)=["\']([^"\']+)["\']',
+    page,
+    flags=re.I,
+)
+
+booking = []
+seen = set()
+
+for link in links:
+    params = parse_link(link)
+
+    if "p" not in params:
+        continue
+
+    signature = (
+        tuple(params.get("p", [])),
+        tuple(params.get("kol", [])),
+        tuple(params.get("c", [])),
+        tuple(params.get("otn", [])),
+        tuple(params.get("id_price", [])),
+    )
+
+    if signature in seen:
+        continue
+
+    seen.add(signature)
+    booking.append(params)
+
+print("UNIQUE BOOKING PARAMETER SETS:", len(booking))
+
+for index, params in enumerate(booking[:8], 1):
+    print("\nBOOKING", index)
+
+    for key in (
+        "p", "kol", "c", "otn", "sr",
+        "cntr", "dt", "id_price",
+        "x", "otv", "repl", "templ",
+    ):
+        if key in params:
+            print(key, "=", params[key])
+
+
+print("\n=== PARAMETER FREQUENCIES ===")
+
+for key in ("p", "kol", "c", "otn", "sr", "cntr"):
+    counts = Counter()
+
+    for link in links:
+        params = parse_link(link)
+
+        for value in params.get(key, []):
+            counts[value] += 1
+
+    print(key, ":", counts.most_common(10))
+
+
+print("\n=== TOURIST TEXT NEAR BOOKING LINKS ===")
+
+shown = 0
+
+for match in re.finditer(
+    r"2\s*взрослых\s*\([^)]*\)",
+    page,
+    flags=re.I,
+):
+    fragment = page[
+        max(0, match.start() - 180):
+        min(len(page), match.end() + 250)
+    ]
+
+    fragment = re.sub(r"<[^>]+>", " ", fragment)
+    fragment = re.sub(r"\s+", " ", fragment).strip()
+
+    print(fragment[:350])
+
+    shown += 1
+
+    if shown >= 5:
+        break
+
+
+print("\n=== FORM TAGS ===")
+
+forms = re.findall(
+    r"<form\b[^>]*>",
     page,
     flags=re.I | re.S,
 )
 
-interesting = (
-    "adult", "child", "age", "pax", "tourist",
-    "people", "person", "pass", "возраст",
-    "взрос", "дет", "количество", "p=",
-)
+print("FORMS:", len(forms))
 
-found = []
-for tag in tags:
-    low = tag.lower()
-    if any(word in low for word in interesting):
-        found.append(clean(tag))
+for form in forms[:10]:
+    print(form[:400])
 
-for item in list(dict.fromkeys(found))[:60]:
-    print(item)
-
-print("MATCHING CONTROLS:", len(found))
-
-
-print("\n=== SCRIPT REFERENCES ===")
-
-scripts = re.findall(
-    r"<script\b[^>]*src=['\"]([^'\"]+)",
-    page,
-    flags=re.I,
-)
-
-for script in list(dict.fromkeys(scripts))[:35]:
-    print(script)
-
-
-print("\n=== PASSENGER CONTEXT ===")
-
-patterns = [
-    r"2\s*взрослых",
-    r"возраст[а-я]*",
-    r"турист[а-я]*",
-    r"количество\s+детей",
-]
-
-seen = set()
-
-for pattern in patterns:
-    for match in list(re.finditer(pattern, page, re.I))[:8]:
-        fragment = clean(
-            page[max(0, match.start() - 350):match.end() + 350]
-        )
-        if fragment not in seen:
-            seen.add(fragment)
-            print(fragment)
-
-
-print("\n=== PRICE LINKS: PARAMETER NAMES ===")
-
-keys = Counter()
-samples = []
-
-for match in re.finditer(
-    r'(?:href|urr)=["\']([^"\']+)',
-    page,
-    flags=re.I,
-):
-    link = html.unescape(match.group(1))
-    if "id_price=" not in link and "p=" not in link:
-        continue
-
-    query = urlparse(link).query
-    if not query and "?" not in link:
-        query = link.lstrip("&")
-
-    parsed = parse_qs(query)
-
-    keys.update(parsed.keys())
-
-    if len(samples) < 3:
-        samples.append({
-            key: value[:2]
-            for key, value in parsed.items()
-            if key in ("p", "id_price", "data", "d2", "f7", "q")
-        })
-
-print("PARAMETERS:", keys.most_common(30))
-
-for sample in samples:
-    print("SAMPLE:", sample)
 
 print("\nDONE")
