@@ -6,17 +6,28 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show files and branch
+        run: |
+          pwd
+          git branch --show-current
+          ls -la
+          find . -name "bg_route_probe*.py"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - run: pip install requests
+      - name: Install requests
+        run: pip install requests
 
       - name: Check BG routes
         run: |
-          python bg_route_probe.py 2026-11-15 8
-          python bg_route_probe.py 2026-11-20 8
-          python bg_route_probe.py 2026-11-25 9
+          python ./bg_route_probe.py 2026-11-15 8
+          python ./bg_route_probe.py 2026-11-20 8
+          python ./bg_route_probe.py 2026-11-25 9
