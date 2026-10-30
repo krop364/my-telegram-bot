@@ -1,32 +1,101 @@
-"""Read-only BG route matrix. Run: python bg_routes_matrix.py"""
-from collections import Counter
-from datetime import datetime, timedelta
+import re
 import requests
-from bg_search_auto_experimental import BASE, HEADERS, _BGRouteParser
+from collections import Counter
+from urllib.parse import unquote, parse_qs
 
-CASES = [('15.11.2026', [2, 6, 8]), ('20.11.2026', [8, 9, 10, 11]), ('25.11.2026', [8, 9])]
+BASE = "https://www.bgoperator.ru/site"
+
+DATES = ["15.11.2026", "20.11.2026", "25.11.2026"]
+
 session = requests.Session()
-session.headers.update(HEADERS)
-for day, nights_options in CASES:
-    for nights in nights_options:
-        params = [('action','price'),('tid','211'),('flt','100410000047'),
-                  ('flt2','100510345650'),('bfr','1'),('data',day),('d2',day),
-                  ('f7',str(nights)),('ho','0'),('ins','15-40000-USD')]
-        try:
-            r = session.get(BASE + '/price.shtml', params=params, timeout=25)
-            r.raise_for_status()
-            parser = _BGRouteParser()
-            parser.feed(r.text)
-            by_route = {}
-            for route_id, component_day, component_nights in parser.components:
-                rec = by_route.setdefault(route_id, {'dates': Counter(), 'lengths': Counter()})
-                rec['dates'][component_day] += 1
-                rec['lengths'][component_nights] += 1
-            print(f'\nDATE={day} REQUESTED_NIGHTS={nights} ROUTES={len(by_route)} COMPONENTS={len(parser.components)}', flush=True)
-            for route_id, info in sorted(by_route.items(), key=lambda x: -sum(x[1]['dates'].values()))[:12]:
-                print(' ID=',route_id,'DATES=',info['dates'].most_common(5),
-                      'COMPONENT_NIGHTS=',info['lengths'].most_common(8), flush=True)
-            if not by_route:
-                print(' NO ROUTES; PAGE_LENGTH=', len(r.text), 'SERVER_HINT=',r.text[:150].replace('\n',' '),flush=True)
-        except Exception as exc:
-            print(f'ERROR date={day} nights={nights}: {type(exc).__name__}: {str(exc)[:180]}', flush=True)
+session.headers.update({
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "text/html,application/xhtml+xml,*/*",
+})
+
+
+def extract_values(html, key):
+    """Ищет значения параметра в URL и HTML-атрибутах."""
+    text = unquote(html)
+
+    patterns = [
+        rf"(?:[?&]|&amp;){re.escape(key)}=([^&\s\"'<>]+)",
+        rf'["\']{re.escape(key)}["\']\s*:\s*["\']([^"\']+)',
+        rf'["\']{re.escape(key)}["\']\s*,\s*["\']([^"\']+)',
+    ]
+
+    values = []
+    for pattern in patterns:
+        values.extend(re.findall(pattern, text, re.I))
+
+    return Counter(values)
+
+
+def inspect_date(day):
+    params = {
+        "action": "price",
+        "tid": "211",
+        "flt": "100410000047",
+        "flt2": "100510345650",
+        "bfr": "1",
+        "data": day,
+        "d2": day,
+        "f7": "8",
+        "ho": "0",
+        "ins": "15-40000-USD",
+    }
+
+    try:
+        response = session.get(BASE, params=params, timeout=40)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        print("REQUEST ERROR:", exc)
+        return
+
+    html = response.text
+
+    print("\nDATE:", day)
+    print("HTTP:", response.status_code)
+    print("HTML LENGTH:", len(html))
+
+    for key in ("p", "id_price", "F4", "f7"):
+        values = extract_values(html, key)
+        print(f"\n{key} VALUES:", len(values))
+
+        for value, count in values.most_common(12):
+            print(" ", repr(value[:180]), "COUNT:", count)
+
+    print("\nPASSENGER-RELATED FRAGMENTS:")
+
+    patterns = [
+        r".{0,100}(?:возраст|взросл|ребен|дети|турист).{0,140}",
+        r".{0,100}(?:child|adult|passenger|pax).{0,140}",
+    ]
+
+    found = set()
+
+    for pattern in patterns:
+        for fragment in re.findall(
+            pattern, html, flags=re.I | re.S
+        ):
+            cleaned = re.sub(r"\s+", " ", fragment)
+            cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+
+            if cleaned not in found:
+                found.add(cleaned)
+                print(" ", cleaned[:240])
+
+            if len(found) >= 12:
+                break
+
+        if len(found) >= 12:
+            break
+
+    if not found:
+        print(" No passenger-related fragments found")
+
+
+for date in DATES:
+    inspect_date(date)
+
+print("\nDONE")
