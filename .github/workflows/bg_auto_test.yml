@@ -13,4 +13,4 @@ jobs:
           python-version: "3.11"
       - run: pip install requests
       - name: Test BG diagnostics
-        run: python bg_next_probe.py
+        run: python bg_routes_matrix.py
