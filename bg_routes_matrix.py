@@ -1,9 +1,9 @@
 
 import re
-import html
 import requests
-from html.parser import HTMLParser
+from bs4 import BeautifulSoup
 from collections import Counter
+from urllib.parse import urljoin
 
 URL = "https://www.bgoperator.ru/site"
 
@@ -20,76 +20,115 @@ PARAMS = {
     "ins": "15-40000-USD",
 }
 
+REQUESTED_NIGHTS = 8
 
-class BGRowParser(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.depth = 0
-        self.row = None
-        self.rows = []
 
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
+def get_text(element):
+    if element is None:
+        return ""
+    return element.get_text(" ", strip=True)
 
-        if tag == "tr":
-            if self.row is None:
-                self.row = {
-                    "text": [],
-                    "html": [],
-                    "attrs": attrs,
-                }
-                self.depth = 1
+
+def parse_offers(page):
+    soup = BeautifulSoup(page, "html.parser")
+
+    current_hotel = None
+    current_resort = None
+    current_date = None
+    offers = []
+
+    for tr in soup.select("tr"):
+        classes = tr.get("class", [])
+
+        if "b-pr_t_hl" in classes:
+            hotel_link = tr.select_one(".c_hl .name a")
+            hotel_name = tr.select_one(".c_hl .name")
+            resort = tr.select_one(".c_hl .name span")
+            date_cell = tr.select_one(".c_de b")
+
+            current_hotel = get_text(hotel_link)
+            current_resort = get_text(resort)
+            current_date = get_text(date_cell)
+
+            if hotel_name:
+                hotel_id = hotel_name.get("data-hid", "")
             else:
-                self.depth += 1
+                hotel_id = ""
 
-        if self.row is not None:
-            self.row["html"].append(
-                self.get_starttag_text() or ""
+            continue
+
+        if not current_hotel:
+            continue
+
+        nights_cell = tr.select_one("td.c_dn")
+        price_cell = tr.select_one("td.c_pe")
+        room_cell = tr.select_one("td.c_ns")
+
+        if not (nights_cell and price_cell and room_cell):
+            continue
+
+        nights_text = get_text(nights_cell)
+        price_element = price_cell.select_one("b.r")
+        price_text = get_text(price_element)
+
+        try:
+            nights = int(nights_text)
+            price_rub = int(
+                re.sub(r"\D", "", price_text)
             )
+        except ValueError:
+            continue
 
-    def handle_endtag(self, tag):
-        if self.row is None:
-            return
+        if price_rub <= 0:
+            continue
 
-        self.row["html"].append(f"</{tag}>")
+        airline = get_text(tr.select_one("td.c_ar"))
+        room = get_text(room_cell)
 
-        if tag == "tr":
-            self.depth -= 1
+        booking_link = price_cell.select_one("a[href]")
+        booking_url = (
+            urljoin(URL, booking_link["href"])
+            if booking_link
+            else None
+        )
 
-            if self.depth == 0:
-                self.rows.append(self.row)
-                self.row = None
+        services = tr.select("td.c_cn li")
 
-    def handle_data(self, data):
-        if self.row is not None:
-            value = data.strip()
+        flight_services = [
+            li for li in services
+            if "i_ft" in li.get("class", [])
+        ]
 
-            if value:
-                self.row["text"].append(value)
+        accommodation_services = [
+            li for li in services
+            if "i_an" in li.get("class", [])
+        ]
 
-            self.row["html"].append(data)
+        # Требуем два сегмента перелёта
+        # и хотя бы одну услугу проживания.
+        has_flights = len(flight_services) >= 2
+        has_hotel = len(accommodation_services) >= 1
 
+        if not (has_flights and has_hotel):
+            continue
 
-def get_param(source, name):
-    match = re.search(
-        rf"(?:[?&;]|^){re.escape(name)}=([^&#\s\"'<>]+)",
-        source,
-        flags=re.IGNORECASE,
-    )
+        offers.append({
+            "hotel": current_hotel,
+            "hotel_id": hotel_id,
+            "resort": current_resort,
+            "date": current_date,
+            "nights": nights,
+            "airline": airline,
+            "room": room,
+            "price_rub": price_rub,
+            "booking_url": booking_url,
+        })
 
-    return match.group(1) if match else None
-
-
-def clean_text(parts):
-    return re.sub(
-        r"\s+",
-        " ",
-        html.unescape(" ".join(parts)),
-    ).strip()
+    return offers
 
 
 def main():
-    print("=== BG: ОТЕЛИ И ЦЕНЫ ===")
+    print("=== BG: ГОТОВЫЕ ПРЕДЛОЖЕНИЯ ===")
 
     response = requests.get(
         URL,
@@ -102,120 +141,60 @@ def main():
     )
 
     print("HTTP:", response.status_code)
-    print("Размер:", len(response.content))
     response.raise_for_status()
 
-    parser = BGRowParser()
-    parser.feed(response.text)
+    offers = parse_offers(response.text)
 
-    print("Всего HTML-строк:", len(parser.rows))
-    print("\n=== СТРУКТУРА ПЕРВЫХ 20 СТРОК ===")
+    print("Полных предложений:", len(offers))
+    print(
+        "Ночей:",
+        dict(Counter(
+            offer["nights"] for offer in offers
+        )),
+    )
 
-    for index, row in enumerate(parser.rows[:20], 1):
-        raw = "".join(row["html"])
-        text = clean_text(row["text"])
-    
-        print(f"\nСТРОКА {index}")
-        print("ATTRS:", row["attrs"])
-        print("TEXT:", text[:350])
-        print("HTML:", raw[:600])
+    exact = [
+        offer for offer in offers
+        if offer["nights"] == REQUESTED_NIGHTS
+    ]
 
-    offers = []
+    print(
+        f"Ровно {REQUESTED_NIGHTS} ночей:",
+        len(exact),
+    )
 
-    for row in parser.rows:
-        raw = "".join(row["html"])
-
-        templ = get_param(raw, "templ")
-        kol = get_param(raw, "kol")
-
-        if not templ or not kol:
-            continue
-
-        offers.append({
-            "templ": templ,
-            "kol": kol,
-            "dt": get_param(raw, "dt"),
-            "otn": get_param(raw, "otn"),
-            "x": get_param(raw, "x"),
-            "text": clean_text(row["text"]),
-            "raw": raw,
-        })
-
-    print("Строк с параметрами тура:", len(offers))
-
-    nights = Counter(item["kol"] for item in offers)
-    print("Ночей:", dict(nights))
-
-    print("\n=== ПЕРВЫЕ 5 ПРЕДЛОЖЕНИЙ ===")
-
-    for index, offer in enumerate(offers[:5], 1):
-        print(f"\n--- ПРЕДЛОЖЕНИЕ {index} ---")
-
-        for key in ("templ", "kol", "dt", "otn", "x"):
-            print(f"{key}: {offer[key]}")
-
-        print("ТЕКСТ СТРОКИ:")
-        print(offer["text"][:1200])
-
-        print("HTML СТРОКИ:")
-        print(offer["raw"][:2200])
-
-    print("\n=== ПОИСК ЦЕН В СТРОКАХ ===")
-
-    for index, offer in enumerate(offers[:5], 1):
-        raw = offer["raw"]
-
-        candidates = []
-
-        for pattern in (
-            r".{0,130}(?:USD|RUB|EUR|₽|\$).{0,130}",
-            r".{0,130}(?:price|cost|summa|stoim).{0,130}",
-        ):
-            for match in re.finditer(
-                pattern,
-                raw,
-                flags=re.IGNORECASE | re.DOTALL,
-            ):
-                snippet = re.sub(
-                    r"\s+",
-                    " ",
-                    match.group(0),
-                )
-
-                if snippet not in candidates:
-                    candidates.append(snippet)
-
-                if len(candidates) >= 4:
-                    break
-
-            if len(candidates) >= 4:
-                break
-
-        print(f"\nПредложение {index}:")
-        for snippet in candidates:
-            print(snippet[:300])
-
-        if not candidates:
-            print("Явные маркеры цены не найдены")
-
-    if not offers:
-        print("\nСтроки предложений не обнаружены.")
+    if exact:
+        selected = exact
+    else:
         print(
-            "Возможно, параметры находятся в другом "
-            "HTML-элементе, а не в tr."
+            "\nНа запрошенное число ночей "
+            "точных совпадений нет."
         )
-        print("Пример вокруг templ:")
-
-        match = re.search(
-            r"templ=",
-            response.text,
-            flags=re.IGNORECASE,
+        print(
+            "Ниже альтернативы, "
+            "не выдаваемые за точные совпадения."
         )
+        selected = offers
 
-        if match:
-            start = max(0, match.start() - 700)
-            end = match.end() + 1000
-            print(response.text[start:end])
+    selected.sort(
+        key=lambda offer: offer["price_rub"]
+    )
+
+    print("\n=== 10 САМЫХ ДЕШЁВЫХ ===")
+
+    for index, offer in enumerate(selected[:10], 1):
+        print(f"\n{index}. {offer['hotel']}")
+        print("Курорт:", offer["resort"])
+        print("Дата:", offer["date"])
+        print("Ночей:", offer["nights"])
+        print(
+            "Цена:",
+            f"{offer['price_rub']:,}".replace(",", " "),
+            "₽",
+        )
+        print("Авиакомпания:", offer["airline"])
+        print("Номер / питание:", offer["room"])
+        print("Ссылка:", offer["booking_url"])
 
     print("\n=== ГОТОВО ===")
 
