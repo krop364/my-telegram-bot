@@ -109,6 +109,16 @@ def main():
     parser.feed(response.text)
 
     print("Всего HTML-строк:", len(parser.rows))
+    print("\n=== СТРУКТУРА ПЕРВЫХ 20 СТРОК ===")
+
+    for index, row in enumerate(parser.rows[:20], 1):
+        raw = "".join(row["html"])
+        text = clean_text(row["text"])
+    
+        print(f"\nСТРОКА {index}")
+        print("ATTRS:", row["attrs"])
+        print("TEXT:", text[:350])
+        print("HTML:", raw[:600])
 
     offers = []
 
