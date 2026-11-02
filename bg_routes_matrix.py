@@ -1,123 +1,125 @@
-"""Проверка трёх предполагаемых справочников Библио-Глобуса.
-
-Запуск: python bg_routes_matrix.py
-Не изменяет файлы бота и не требует дополнительных библиотек.
-"""
 
 import json
 import re
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from pathlib import Path
+
+BASE = Path(__file__).resolve().parent
 
 
-SOURCES = {
-    "countries": "https://export.bgoperator.ru/yandex?action=countries",
-    "resorts": "https://export.bgoperator.ru/auto/jsonResorts.json",
-    "directions": "https://export.bgoperator.ru/auto/homepage-124331253701.js",
-}
-
-KEYWORDS = (
-    "египет",
-    "казань",
-    "egypt",
-    "kazan",
-    "100410000047",
-    "100510345650",
-)
+def read_json(filename):
+    path = BASE / filename
+    if not path.exists():
+        raise FileNotFoundError(f"Не найден файл: {filename}")
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
-def inspect(name, url):
-    print(f"\n=== {name.upper()} ===")
-    print("URL:", url)
+def read_departures():
+    text = (BASE / "bg_departures.json").read_text(
+        encoding="utf-8-sig"
+    ).strip()
 
-    request = Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "*/*",
-        },
+    # Этот справочник начинается с: var BG_FLTX =
+    match = re.search(r"\bvar\s+BG_FLTX\s*=", text)
+    if not match:
+        raise ValueError("Не найдена переменная BG_FLTX")
+
+    data = text[match.end():].strip().rstrip(";").strip()
+    return json.loads(data)
+
+
+def extract_departures(data):
+    # В BG_FLTX города вылета находятся в flt2:
+    # [ID, {"n": "Название", ...}]
+    if not isinstance(data, dict):
+        raise ValueError("BG_FLTX должен быть объектом")
+
+    result = {}
+
+    for entry in data.get("flt2", []):
+        if not isinstance(entry, list) or len(entry) < 2:
+            continue
+
+        city_id, info = entry[0], entry[1]
+
+        if isinstance(info, dict) and info.get("n"):
+            result[str(info["n"]).strip().casefold()] = str(city_id)
+
+    return result
+
+
+def find_country(countries, name):
+    for country in countries:
+        if country.get("title_ru", "").strip().casefold() == name.casefold():
+            return country
+    return None
+
+
+def check_route(countries, departures, city, destination):
+    country = find_country(countries, destination)
+    city_id = departures.get(city.casefold())
+
+    print(f"\n=== {city} -> {destination} ===")
+
+    if not country:
+        print("FAIL: страна не найдена")
+        return False
+
+    if not city_id:
+        print("FAIL: город вылета не найден")
+        return False
+
+    country_id = str(country["id"])
+
+    allowed_cities = set(
+        filter(None, country.get("town_from", "").split("#"))
     )
 
-    try:
-        with urlopen(request, timeout=25) as response:
-            raw = response.read(3_000_001)
-            print("HTTP:", response.status)
-            print(
-                "Content-Type:",
-                response.headers.get("Content-Type", "unknown"),
-            )
+    print("flt  (страна):", country_id)
+    print("flt2 (вылет): ", city_id)
+    print("Туры в справочнике:", country.get("tours"))
 
-            if len(raw) > 3_000_000:
-                print("ОТВЕТ СЛИШКОМ БОЛЬШОЙ: показаны первые 3 МБ")
+    if city_id in allowed_cities:
+        print("PASS: направление присутствует в справочнике BG")
+        return True
 
-    except HTTPError as error:
-        print("HTTP ERROR:", error.code)
-        return
+    print("NO MATCH: пара отсутствует в списке town_from")
+    return False
 
-    except (URLError, TimeoutError, OSError) as error:
-        print("NETWORK ERROR:", str(error)[:300])
-        return
 
-    text = raw.decode("utf-8-sig", errors="replace")
+def main():
+    print("=== ЛОКАЛЬНЫЕ СПРАВОЧНИКИ BG ===")
 
-    print("Размер полученной части (байт):", len(raw))
-    print(
-        "Начало ответа:",
-        re.sub(r"\s+", " ", text[:450]),
-    )
+    countries = read_json("bg_countries.json")
+    resorts = read_json("bg_resorts.json")
+    raw_departures = read_departures()
+    departures = extract_departures(raw_departures)
 
-    try:
-        data = json.loads(text)
+    print("Стран:", len(countries))
+    print("Городов и курортов:", len(resorts))
+    print("Городов вылета:", len(departures))
 
-    except json.JSONDecodeError:
-        print("Формат: не чистый JSON (возможно XML, JS или HTML)")
+    print("\nПервые города вылета:")
+    for name, city_id in list(departures.items())[:8]:
+        print(f"  {name}: {city_id}")
 
-    else:
-        print("Формат: JSON")
-
-        if isinstance(data, list):
-            print("Элементов в корневом списке:", len(data))
-
-            if data:
-                print("Пример элемента:", str(data[0])[:350])
-
-        elif isinstance(data, dict):
-            print("Ключи корневого объекта:", list(data)[:25])
-
-            for key, value in data.items():
-                if isinstance(value, list):
-                    print(f"Список {key}: {len(value)} элементов")
-
-    print("Совпадения с Египтом / Казанью / известными ID:")
-
-    lines = text.splitlines()
-
-    matches = [
-        line.strip()[:500]
-        for line in lines
-        if any(k in line.lower() for k in KEYWORDS)
+    routes = [
+        ("Казань", "Египет"),
+        ("Москва", "Турция"),
+        ("Екатеринбург", "Таиланд"),
     ]
 
-    if matches:
-        for line in matches[:8]:
-            print(" -", line)
+    passed = sum(
+        check_route(countries, departures, city, country)
+        for city, country in routes
+    )
 
-        if len(matches) > 8:
-            print(
-                " ... всего строк с совпадениями:",
-                len(matches),
-            )
-    else:
-        print("Не обнаружены в полученном фрагменте")
+    print(f"\nRESULT: {passed}/{len(routes)} routes matched")
+
+    if passed != len(routes):
+        raise SystemExit(1)
+
+    print("SUCCESS: локальные справочники BG работают")
 
 
 if __name__ == "__main__":
-    print("BG: проверка доступности справочников")
-
-    for source_name, source_url in SOURCES.items():
-        inspect(source_name, source_url)
-
-    print(
-        "\nГОТОВО. HTTP 200 сам по себе не доказывает, "
-        "что данные подходят для flt/flt2."
-    )
+    main()
