@@ -7,58 +7,56 @@ BASE = Path(__file__).resolve().parent
 
 
 def read_json(filename):
-    path = BASE / filename
-    if not path.exists():
-        raise FileNotFoundError(f"Не найден файл: {filename}")
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    text = (BASE / filename).read_text(encoding="utf-8-sig")
+    return json.loads(text)
 
 
-def read_departures():
-    text = (BASE / "bg_departures.json").read_text(
+def read_bg_fltx():
+    text = (BASE / "bg_resorts.json").read_text(
         encoding="utf-8-sig"
     ).strip()
 
-    # Этот справочник начинается с: var BG_FLTX =
     match = re.search(r"\bvar\s+BG_FLTX\s*=", text)
-    if not match:
-        raise ValueError("Не найдена переменная BG_FLTX")
 
-    data = text[match.end():].strip().rstrip(";").strip()
-    return json.loads(data)
+    if not match:
+        raise ValueError(
+            "В bg_resorts.json не найдена переменная BG_FLTX"
+        )
+
+    text = text[match.end():].strip().rstrip(";").strip()
+    return json.loads(text)
 
 
 def extract_departures(data):
-    # В BG_FLTX города вылета находятся в flt2:
-    # [ID, {"n": "Название", ...}]
-    if not isinstance(data, dict):
-        raise ValueError("BG_FLTX должен быть объектом")
-
     result = {}
 
-    for entry in data.get("flt2", []):
-        if not isinstance(entry, list) or len(entry) < 2:
+    for item in data.get("flt2", []):
+        if not isinstance(item, list) or len(item) < 2:
             continue
 
-        city_id, info = entry[0], entry[1]
+        city_id, info = item[0], item[1]
 
-        if isinstance(info, dict) and info.get("n"):
-            result[str(info["n"]).strip().casefold()] = str(city_id)
+        if isinstance(info, dict):
+            name = str(info.get("n", "")).strip()
+            if name:
+                result[name.casefold()] = str(city_id)
 
     return result
 
 
-def find_country(countries, name):
-    for country in countries:
-        if country.get("title_ru", "").strip().casefold() == name.casefold():
-            return country
-    return None
-
-
 def check_route(countries, departures, city, destination):
-    country = find_country(countries, destination)
-    city_id = departures.get(city.casefold())
-
     print(f"\n=== {city} -> {destination} ===")
+
+    country = next(
+        (
+            item for item in countries
+            if item.get("title_ru", "").strip().casefold()
+            == destination.casefold()
+        ),
+        None,
+    )
+
+    city_id = departures.get(city.casefold())
 
     if not country:
         print("FAIL: страна не найдена")
@@ -70,19 +68,19 @@ def check_route(countries, departures, city, destination):
 
     country_id = str(country["id"])
 
-    allowed_cities = set(
+    allowed = set(
         filter(None, country.get("town_from", "").split("#"))
     )
 
-    print("flt  (страна):", country_id)
-    print("flt2 (вылет): ", city_id)
-    print("Туры в справочнике:", country.get("tours"))
+    print("flt:", country_id)
+    print("flt2:", city_id)
+    print("Туры:", country.get("tours"))
 
-    if city_id in allowed_cities:
-        print("PASS: направление присутствует в справочнике BG")
+    if city_id in allowed:
+        print("PASS: направление найдено в справочнике")
         return True
 
-    print("NO MATCH: пара отсутствует в списке town_from")
+    print("NO MATCH: город отсутствует в town_from")
     return False
 
 
@@ -90,17 +88,13 @@ def main():
     print("=== ЛОКАЛЬНЫЕ СПРАВОЧНИКИ BG ===")
 
     countries = read_json("bg_countries.json")
-    resorts = read_json("bg_resorts.json")
-    raw_departures = read_departures()
-    departures = extract_departures(raw_departures)
+    cities = read_json("bg_departures.json")
+    fltx = read_bg_fltx()
+    departures = extract_departures(fltx)
 
     print("Стран:", len(countries))
-    print("Городов и курортов:", len(resorts))
+    print("Городов и курортов:", len(cities))
     print("Городов вылета:", len(departures))
-
-    print("\nПервые города вылета:")
-    for name, city_id in list(departures.items())[:8]:
-        print(f"  {name}: {city_id}")
 
     routes = [
         ("Казань", "Египет"),
@@ -109,16 +103,16 @@ def main():
     ]
 
     passed = sum(
-        check_route(countries, departures, city, country)
-        for city, country in routes
+        check_route(countries, departures, city, destination)
+        for city, destination in routes
     )
 
-    print(f"\nRESULT: {passed}/{len(routes)} routes matched")
+    print(f"\nRESULT: {passed}/{len(routes)}")
 
     if passed != len(routes):
         raise SystemExit(1)
 
-    print("SUCCESS: локальные справочники BG работают")
+    print("SUCCESS: справочники BG работают")
 
 
 if __name__ == "__main__":
