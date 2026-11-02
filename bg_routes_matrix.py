@@ -182,6 +182,9 @@ def main():
 
     if isinstance(payload, dict):
         print("Ключи ответа:", list(payload)[:20])
+
+    if "ERROR" in payload:
+        print("BG ERROR:", repr(payload["ERROR"]))
         entries = payload.get("entries", [])
     elif isinstance(payload, list):
         entries = payload
