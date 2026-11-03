@@ -207,13 +207,33 @@ def package_prices(from_id, to_id, date, nights, program):
 
             q = parse_qs(urlsplit(link).query)
 
-            if (
-                q.get('dt', [''])[0] != date
-                or q.get('kol', [''])[0] != str(nights)
-                or q.get('p', [''])[0] != persons_code(date)
-                or q.get('templ', [''])[0] != program
-            ):
+            actual = {
+                'dt': q.get('dt', [''])[0],
+                'kol': q.get('kol', [''])[0],
+                'p': q.get('p', [''])[0],
+                'templ': q.get('templ', [''])[0],
+            }
+            
+            expected = {
+                'dt': date,
+                'kol': str(nights),
+                'p': persons_code(date),
+                'templ': program,
+            }
+            
+            differences = {
+                key: (expected[key], actual[key])
+                for key in expected
+                if actual[key] != expected[key]
+            }
+            
+            if differences:
                 rejects['параметры бронирования'] += 1
+            
+                if rejects['параметры бронирования'] == 1:
+                    print('  ДИАГНОСТИКА ССЫЛКИ:', differences)
+                    print('  ПРИМЕР:', link[:350])
+            
                 continue
 
             valid.append((
