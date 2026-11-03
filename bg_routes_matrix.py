@@ -1,202 +1,287 @@
 
+import json
 import re
-import requests
-from bs4 import BeautifulSoup
+from pathlib import Path
 from collections import Counter
 from urllib.parse import urljoin
 
-URL = "https://www.bgoperator.ru/site"
+import requests
+from bs4 import BeautifulSoup
 
-PARAMS = {
-    "action": "price",
-    "tid": "211",
-    "flt": "100410000047",
-    "flt2": "100510345650",
-    "bfr": "1",
-    "data": "15.11.2026",
-    "d2": "15.11.2026",
-    "f7": "8",
-    "ho": "0",
-    "ins": "15-40000-USD",
-}
-
-REQUESTED_NIGHTS = 8
+BASE = Path(__file__).resolve().parent
+BG_URL = "https://www.bgoperator.ru/site"
 
 
-def get_text(element):
-    if element is None:
-        return ""
-    return element.get_text(" ", strip=True)
+def read_json(filename):
+    return json.loads(
+        (BASE / filename).read_text(encoding="utf-8-sig")
+    )
+
+
+def load_departures():
+    # Здесь города берём из обычного JSON.
+    # BG_FLTX для этого этапа не требуется.
+    cities = read_json("bg_departures.json")
+
+    result = {}
+
+    for city in cities:
+        name = city.get("title_ru", "").strip()
+        city_id = city.get("id")
+
+        if name and city_id:
+            result[name.casefold()] = str(city_id)
+
+    return result
+
+
+COUNTRIES = read_json("bg_countries.json")
+DEPARTURES = load_departures()
+
+
+def resolve_route(city, destination):
+    country = next(
+        (
+            item for item in COUNTRIES
+            if item.get("title_ru", "").strip().casefold()
+            == destination.strip().casefold()
+        ),
+        None,
+    )
+
+    if not country:
+        raise ValueError(
+            f"Страна не найдена: {destination}"
+        )
+
+    city_id = DEPARTURES.get(city.strip().casefold())
+
+    if not city_id:
+        raise ValueError(
+            f"Город вылета не найден: {city}"
+        )
+
+    allowed = set(filter(
+        None,
+        country.get("town_from", "").split("#"),
+    ))
+
+    if city_id not in allowed:
+        raise ValueError(
+            f"Направление {city} → {destination} "
+            "не найдено в справочнике"
+        )
+
+    return str(country["id"]), city_id
 
 
 def parse_offers(page):
     soup = BeautifulSoup(page, "html.parser")
 
-    current_hotel = None
-    current_resort = None
-    current_date = None
     offers = []
+    hotel = ""
+    resort = ""
+    departure_date = ""
 
     for tr in soup.select("tr"):
-        classes = tr.get("class", [])
+        if "b-pr_t_hl" in tr.get("class", []):
+            hotel = tr.select_one(".c_hl .name a")
+            resort_el = tr.select_one(".c_hl .name span")
+            date_el = tr.select_one(".c_de b")
 
-        if "b-pr_t_hl" in classes:
-            hotel_link = tr.select_one(".c_hl .name a")
-            hotel_name = tr.select_one(".c_hl .name")
-            resort = tr.select_one(".c_hl .name span")
-            date_cell = tr.select_one(".c_de b")
-
-            current_hotel = get_text(hotel_link)
-            current_resort = get_text(resort)
-            current_date = get_text(date_cell)
-
-            if hotel_name:
-                hotel_id = hotel_name.get("data-hid", "")
-            else:
-                hotel_id = ""
-
+            hotel = (
+                hotel.get_text(" ", strip=True)
+                if hotel else ""
+            )
+            resort = (
+                resort_el.get_text(" ", strip=True)
+                if resort_el else ""
+            )
+            departure_date = (
+                date_el.get_text(" ", strip=True)
+                if date_el else ""
+            )
             continue
 
-        if not current_hotel:
+        nights_el = tr.select_one("td.c_dn")
+        price_el = tr.select_one("td.c_pe b.r")
+        room_el = tr.select_one("td.c_ns")
+
+        if not (
+            hotel and nights_el
+            and price_el and room_el
+        ):
             continue
-
-        nights_cell = tr.select_one("td.c_dn")
-        price_cell = tr.select_one("td.c_pe")
-        room_cell = tr.select_one("td.c_ns")
-
-        if not (nights_cell and price_cell and room_cell):
-            continue
-
-        nights_text = get_text(nights_cell)
-        price_element = price_cell.select_one("b.r")
-        price_text = get_text(price_element)
 
         try:
-            nights = int(nights_text)
-            price_rub = int(
-                re.sub(r"\D", "", price_text)
+            nights = int(
+                nights_el.get_text(" ", strip=True)
             )
+            price = int(re.sub(
+                r"\D", "",
+                price_el.get_text(" ", strip=True),
+            ))
         except ValueError:
             continue
 
-        if price_rub <= 0:
-            continue
-
-        airline = get_text(tr.select_one("td.c_ar"))
-        room = get_text(room_cell)
-
-        booking_link = price_cell.select_one("a[href]")
-        booking_url = (
-            urljoin(URL, booking_link["href"])
-            if booking_link
-            else None
-        )
-
         services = tr.select("td.c_cn li")
 
-        flight_services = [
-            li for li in services
-            if "i_ft" in li.get("class", [])
+        flights = [
+            el for el in services
+            if "i_ft" in el.get("class", [])
         ]
 
-        accommodation_services = [
-            li for li in services
-            if "i_an" in li.get("class", [])
+        accommodation = [
+            el for el in services
+            if "i_an" in el.get("class", [])
         ]
 
-        # Требуем два сегмента перелёта
-        # и хотя бы одну услугу проживания.
-        has_flights = len(flight_services) >= 2
-        has_hotel = len(accommodation_services) >= 1
-
-        if not (has_flights and has_hotel):
+        if len(flights) < 2 or not accommodation:
             continue
 
+        link = tr.select_one("td.c_pe a[href]")
+
         offers.append({
-            "hotel": current_hotel,
-            "hotel_id": hotel_id,
-            "resort": current_resort,
-            "date": current_date,
+            "hotel": hotel,
+            "resort": resort,
+            "date": departure_date,
             "nights": nights,
-            "airline": airline,
-            "room": room,
-            "price_rub": price_rub,
-            "booking_url": booking_url,
+            "price_rub": price,
+            "airline": (
+                tr.select_one("td.c_ar")
+                .get_text(" ", strip=True)
+                if tr.select_one("td.c_ar") else ""
+            ),
+            "room": room_el.get_text(" ", strip=True),
+            "url": urljoin(
+                BG_URL,
+                link["href"],
+            ) if link else None,
         })
 
     return offers
 
 
-def main():
-    print("=== BG: ГОТОВЫЕ ПРЕДЛОЖЕНИЯ ===")
+def search_bg_tours(
+    city,
+    destination,
+    date,
+    nights,
+    adults=2,
+):
+    if adults != 2:
+        raise ValueError(
+            "Пока проверяем только 2 взрослых"
+        )
+
+    country_id, city_id = resolve_route(
+        city, destination
+    )
+
+    params = {
+        "action": "price",
+        "tid": "211",
+        "flt": country_id,
+        "flt2": city_id,
+        "bfr": "1",
+        "data": date,
+        "d2": date,
+        "f7": str(nights),
+        "ho": "0",
+        "ins": "15-40000-USD",
+    }
 
     response = requests.get(
-        URL,
-        params=PARAMS,
+        BG_URL,
+        params=params,
         headers={
             "User-Agent": "Mozilla/5.0",
             "Accept-Language": "ru-RU,ru;q=0.9",
         },
         timeout=60,
     )
-
-    print("HTTP:", response.status_code)
     response.raise_for_status()
 
     offers = parse_offers(response.text)
 
-    print("Полных предложений:", len(offers))
-    print(
-        "Ночей:",
-        dict(Counter(
-            offer["nights"] for offer in offers
-        )),
-    )
+    # Не показываем туры с другой датой.
+    offers = [
+        offer for offer in offers
+        if offer["date"] == date
+    ]
 
     exact = [
         offer for offer in offers
-        if offer["nights"] == REQUESTED_NIGHTS
+        if offer["nights"] == nights
     ]
 
-    print(
-        f"Ровно {REQUESTED_NIGHTS} ночей:",
-        len(exact),
-    )
+    exact.sort(key=lambda x: x["price_rub"])
 
-    if exact:
-        selected = exact
-    else:
+    return {
+        "country_id": country_id,
+        "city_id": city_id,
+        "total": len(offers),
+        "nights_found": dict(Counter(
+            offer["nights"] for offer in offers
+        )),
+        "exact": exact,
+    }
+
+
+def main():
+    cases = [
+        ("Казань", "Египет", "15.11.2026", 8),
+        ("Москва", "Турция", "20.11.2026", 7),
+        ("Екатеринбург", "Таиланд", "25.11.2026", 9),
+    ]
+
+    print("=== BG UNIVERSAL SEARCH TEST ===")
+
+    for city, country, date, nights in cases:
         print(
-            "\nНа запрошенное число ночей "
-            "точных совпадений нет."
+            f"\n=== {city} → {country} | "
+            f"{date} | {nights} ночей ==="
         )
-        print(
-            "Ниже альтернативы, "
-            "не выдаваемые за точные совпадения."
-        )
-        selected = offers
 
-    selected.sort(
-        key=lambda offer: offer["price_rub"]
-    )
+        try:
+            result = search_bg_tours(
+                city, country, date, nights
+            )
 
-    print("\n=== 10 САМЫХ ДЕШЁВЫХ ===")
+            print("flt:", result["country_id"])
+            print("flt2:", result["city_id"])
+            print("Всего предложений:", result["total"])
+            print("Ночи:", result["nights_found"])
+            print(
+                "Точных совпадений:",
+                len(result["exact"]),
+            )
 
-    for index, offer in enumerate(selected[:10], 1):
-        print(f"\n{index}. {offer['hotel']}")
-        print("Курорт:", offer["resort"])
-        print("Дата:", offer["date"])
-        print("Ночей:", offer["nights"])
-        print(
-            "Цена:",
-            f"{offer['price_rub']:,}".replace(",", " "),
-            "₽",
-        )
-        print("Авиакомпания:", offer["airline"])
-        print("Номер / питание:", offer["room"])
-        print("Ссылка:", offer["booking_url"])
+            for offer in result["exact"][:3]:
+                print(
+                    offer["hotel"],
+                    "|",
+                    offer["nights"],
+                    "ночей |",
+                    offer["price_rub"],
+                    "₽",
+                )
+                print("Ссылка:", offer["url"])
 
-    print("\n=== ГОТОВО ===")
+            if not result["exact"]:
+                print(
+                    "Точных предложений не найдено. "
+                    "Это не ошибка программы."
+                )
+
+        except Exception as exc:
+            print(
+                "ERROR:",
+                type(exc).__name__,
+                str(exc)[:300],
+            )
+
+    print("\n=== ТЕСТ ЗАВЕРШЁН ===")
 
 
 if __name__ == "__main__":
