@@ -1,275 +1,176 @@
-"""Public Biblio-Globus package offers; conservative validation, no invented prices."""
-import json
-import html
-import time
-import threading
-from collections import Counter
-import logging
+"""Самостоятельная проверка программ Библио-Глобуса в GitHub Actions.
+Не импортирует bg_search.py и не меняет бот.
+Зависимости: requests, beautifulsoup4.
+"""
 import re
-from datetime import date, timedelta
-from pathlib import Path
-from urllib.parse import parse_qs, urlparse, urljoin
+import traceback
+from collections import Counter
+from datetime import datetime, date
+from urllib.parse import urljoin, urlparse, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
 
-LOG = logging.getLogger(__name__)
-BASE = 'https://www.bgoperator.ru'
-# Extra BG programme pages are bounded to keep Telegram/MAX responsive.
-MAX_EXTRA_PROGRAMMES = 4
-CACHE_TTL = 600
-_PROGRAM_CACHE = {}
-_CACHE_LOCK = threading.Lock()
-ROOT = Path(__file__).resolve().parent
-# Known verified route identifiers are a fallback when catalogs are absent.
-COUNTRY_FALLBACK = {'египет': '100410000047', 'турция': '100411293179', 'таиланд': '100410000051'}
-CITY_FALLBACK = {'казань': '100510345650', 'москва': '100510000863', 'екатеринбург': '100510000892'}
+BASE = 'https://www.bgoperator.ru/'
+SESSION = requests.Session()
+SESSION.headers.update({'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125 Safari/537.36', 'Accept-Language': 'ru-RU,ru;q=0.9'})
+
+CASES = [
+    {'name': 'Москва → Турция', 'flt': '100411293179', 'flt2': '100510000863',
+     'start': '20.11.2026', 'end': '20.11.2026', 'nights': [7],
+     'templates': [('Турция: подтверждённая программа для 2 взрослых', '121110211811', {})]},
+    {'name': 'Екатеринбург → Таиланд', 'flt': '100410000051', 'flt2': '100510000892',
+     'start': '15.11.2026', 'end': '22.11.2026', 'nights': [11, 12, 13],
+     'templates': [
+         ('Паттайя / Аэрофлот', '121163457355', {'ins': '0-50000-USD', 'f50': '104611014871', 'f51': '104625988050'}),
+         ('Пхукет / Аэрофлот', '121166921602', {'ins': '0-50000-USD'}),
+     ]},
+    {'name': 'Казань → Египет', 'flt': '100410000047', 'flt2': '100510345650',
+     'start': '15.11.2026', 'end': '22.11.2026', 'nights': [6, 7, 8, 9], 'templates': []},
+]
 
 
-def norm(value):
-    return re.sub(r'\s+', ' ', str(value or '').strip().casefold().replace('ё', 'е'))
+def fetch(url, params):
+    response = SESSION.get(url, params=params, timeout=40)
+    response.raise_for_status()
+    response.encoding = response.apparent_encoding if response.encoding == 'ISO-8859-1' else response.encoding
+    return response.text, response.url
 
 
-def catalog(filename):
-    try:
-        obj = json.loads((ROOT / filename).read_text(encoding='utf-8-sig'))
-        return obj if isinstance(obj, list) else []
-    except (OSError, ValueError):
-        return []
+def params_for(case, template=None, extras=None):
+    # Код p подтверждён только для двух взрослых и даты 15/20 ноября 2026.
+    day = int(case['start'][:2])
+    person = f'{day:03d}1019900'
+    params = [('action', 'price'), ('tid', '211'), ('flt', case['flt']),
+              ('flt2', case['flt2']), ('bfr', '1'), ('data', case['start']),
+              ('d2', case['end']), ('ho', '0'), ('ins', '0-50000-USD'),
+              ('p', f'{person}.{person}')]
+    if template:
+        params.append(('id_price', template))
+    for n in case['nights']:
+        params.append(('f7', str(n)))
+    if extras:
+        for key, value in extras.items():
+            params = [(k, v) for k, v in params if k != key]
+            params.append((key, value))
+    return params
 
 
-def resolve_route(city, country):
-    countries = catalog('bg_countries.json')
-    departure_cities = catalog('bg_departures.json')
-    cn = next((str(x['id']) for x in countries if norm(x.get('title_ru')) == norm(country)), None)
-    ct = next((str(x['id']) for x in departure_cities if norm(x.get('title_ru')) == norm(city) and str(x.get('id', '')).startswith('1005')), None)
-    cn = cn or COUNTRY_FALLBACK.get(norm(country))
-    ct = CITY_FALLBACK.get(norm(city)) or ct
-    if not cn or not ct:
-        return None
-    # If catalog has a list of departure cities for this country, enforce it.
-    cdata = next((x for x in countries if str(x.get('id')) == cn), None)
-    if cdata and cdata.get('town_from'):
-        allowed = set(str(cdata['town_from']).split('#'))
-        if ct not in allowed:
-            return None
-    return cn, ct
+def discover(html):
+    # Диагностика: наличие id_price в HTML не доказывает, что программа доступна.
+    decoded = html.replace('&amp;', '&')
+    ids = set(re.findall(r'(?i)\bid_price\s*[=:]\s*["\']?(\d{8,18})', decoded))
+    ids.update(re.findall(r'(?i)\bid_price(?:%3[dD]|=)(\d{8,18})', decoded))
+    ids.update(re.findall(r'(?i)\btempl(?:=|%3[dD])(\d{8,18})', decoded))
+    return sorted(ids)
 
 
-def parse_offers(page):
-    soup = BeautifulSoup(page, 'html.parser')
+def parse_offers(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    hotel = ''
     offers = []
-    hotel = resort = table_date = hotel_id = ''
     for tr in soup.select('tr'):
-        if 'b-pr_t_hl' in tr.get('class', []):
-            link = tr.select_one('.c_hl .name a')
-            name = tr.select_one('.c_hl .name')
-            place = tr.select_one('.c_hl .name span')
-            day = tr.select_one('.c_de b')
-            hotel = link.get_text(' ', strip=True) if link else ''
-            hotel_id = name.get('data-hid', '') if name else ''
-            resort = place.get_text(' ', strip=True) if place else ''
-            table_date = day.get_text(' ', strip=True) if day else ''
+        classes = tr.get('class') or []
+        if 'b-pr_t_hl' in classes:
+            link = tr.select_one('a')
+            hotel = (link or tr).get_text(' ', strip=True)[:130]
             continue
-        night_el = tr.select_one('td.c_dn')
-        price_el = tr.select_one('td.c_pe b.r')
-        room_el = tr.select_one('td.c_ns')
-        link = tr.select_one('td.c_pe a[href]')
-        if not (hotel and night_el and price_el and room_el and link):
+        night_cell = tr.select_one('td.c_dn')
+        price_cell = tr.select_one('td.c_pe')
+        if not night_cell or not price_cell:
             continue
-        flights = tr.select('td.c_cn li.i_ft')
-        stays = tr.select('td.c_cn li.i_an')
-        if len(flights) < 2 or not stays:
+        night_match = re.search(r'\b(\d{1,2})\b', night_cell.get_text(' ', strip=True))
+        price_node = price_cell.select_one('b.r')
+        if not night_match or not price_node:
             continue
-        try:
-            nights = int(night_el.get_text(' ', strip=True))
-            price = int(re.sub(r'\D', '', price_el.get_text(' ', strip=True)))
-            day = __import__('datetime').datetime.strptime(table_date, '%d.%m.%Y').date()
-        except (ValueError, TypeError):
+        price_digits = re.sub(r'\D', '', price_node.get_text(' ', strip=True))
+        link = price_cell.select_one('a[href*="zaya"]') or tr.select_one('a[href*="zaya"]')
+        if not price_digits or not link:
             continue
-        if price <= 0:
-            continue
-        url = urljoin(BASE, link['href'])
-        if urlparse(url).hostname not in ('www.bgoperator.ru', 'bgoperator.ru'):
-            continue
-        qs = parse_qs(urlparse(url).query)
-        airline_el = tr.select_one('td.c_ar')
-        offers.append({
-            'hotel': hotel, 'hotel_id': hotel_id, 'resort': resort,
-            'date': day, 'nights': nights, 'price_rub': price,
-            'room': room_el.get_text(' ', strip=True),
-            'airline': airline_el.get_text(' ', strip=True) if airline_el else '',
-            'source': url, 'link_date': (qs.get('dt') or [''])[0],
-            'link_nights': (qs.get('kol') or [''])[0],
-            'link_p': (qs.get('p') or [''])[0],
-        })
+        url = urljoin(BASE, link.get('href', ''))
+        query = parse_qs(urlparse(url).query)
+        flight_count = len(tr.select('td.c_cn li.i_ft'))
+        accommodation_count = len(tr.select('td.c_cn li.i_an'))
+        # В некоторых таблицах услуги выводятся в соседних строках;
+        # без явных маркеров пакет не считаем подтверждённым.
+        offers.append({'hotel': hotel, 'nights': int(night_match.group(1)),
+                       'price': int(price_digits), 'url': url,
+                       'date': (query.get('dt') or [''])[0],
+                       'link_nights': (query.get('kol') or [''])[0],
+                       'p': (query.get('p') or [''])[0],
+                       'flights': flight_count, 'hotels': accommodation_count})
     return offers
 
 
-
-def discover_programmes(page, start, end):
-    """Extract real id_price candidates from BG price-page component links.
-
-    BG embeds component URLs in `urr` attributes. A candidate is not a
-    confirmed tour: each offer is checked against dates, passenger code,
-    flight+hotel services and the booking URL afterwards.
-    """
-    raw = html.unescape(page)
-    candidates = Counter()
-    # Keep bounded scans; links may be HTML-escaped and embedded in JS.
-    for match in re.finditer(r'(?:id_price=|id_price%3D)(\d{9,15})', raw, re.I):
-        programme = match.group(1)
-        vicinity = raw[max(0, match.start() - 450):match.end() + 500]
-        # Date labels may be absent in the component markup. Never assume
-        # a programme is valid merely because it appears in the page.
-        candidates[programme] += 1
-    return [pid for pid, _ in candidates.most_common(12)]
-
-
-def fetch_bg_page(params, programme=None):
-    query = list(params)
-    if programme:
-        query.append(('id_price', programme))
-    response = requests.get(
-        BASE + ('/price.shtml' if programme else '/site'),
-        params=query,
-        headers={'User-Agent': 'Mozilla/5.0',
-                 'Accept-Language': 'ru-RU,ru;q=0.9'},
-        timeout=28,
-    )
-    response.raise_for_status()
-    return response.text
-
-
-def get_programme_pages(params, start, end):
-    """Search the country-level page plus a small number of real programmes."""
-    cache_key = tuple(params)
-    now = time.monotonic()
-    with _CACHE_LOCK:
-        cached = _PROGRAM_CACHE.get(cache_key)
-        if cached and now - cached[0] < CACHE_TTL:
-            return cached[1]
-    primary = fetch_bg_page(params)
-    pages = [('общий поиск', primary)]
-    programme_ids = discover_programmes(primary, start, end)
-    # In some BG layouts programme IDs only appear on the price.shtml page.
-    if not programme_ids:
-        try:
-            discovery_params = list(params)
-            discovery = requests.get(
-                BASE + '/price.shtml', params=discovery_params,
-                headers={'User-Agent': 'Mozilla/5.0'}, timeout=20,
-            )
-            discovery.raise_for_status()
-            programme_ids = discover_programmes(discovery.text, start, end)
-        except requests.RequestException as exc:
-            LOG.info('BG programme discovery unavailable: %s', exc)
-    for pid in programme_ids[:MAX_EXTRA_PROGRAMMES]:
-        try:
-            page = fetch_bg_page(params, pid)
-            pages.append((pid, page))
-        except requests.RequestException as exc:
-            LOG.info('BG programme %s unavailable: %s', pid, exc)
-    with _CACHE_LOCK:
-        if len(_PROGRAM_CACHE) > 30:
-            _PROGRAM_CACHE.clear()
-        _PROGRAM_CACHE[cache_key] = (time.monotonic(), pages)
-    return pages
-
-def search_bg_tours(departure_city, country, departure_date, nights, adults,
-                    children=0, limit=5, departure_date_end=None,
-                    nights_max=None, budget_max=None, child_ages=None):
-    """Return confirmed matching public offers. Unknown passenger codes are not guessed."""
-    try:
-        start = date.fromisoformat(departure_date)
-        end = date.fromisoformat(departure_date_end or departure_date)
-        nmin = int(nights)
-        nmax = int(nights_max or nights)
-        adults = int(adults)
-        children = int(children)
-        limit = max(1, min(int(limit), 10))
-        ages = [int(x) for x in (child_ages or [])]
-        budget = int(budget_max) if budget_max is not None else None
-    except (ValueError, TypeError):
-        return []
-    if (start < date.today() or end < start or (end-start).days > 14 or
-            not 1 <= nmin <= nmax <= 30 or not 1 <= adults <= 6 or
-            children != len(ages) or children > 3):
-        return []
-    route = resolve_route(departure_city, country)
-    if not route:
-        LOG.info('BG: unknown route %s -> %s', departure_city, country)
-        return []
-    country_id, city_id = route
-    # Verified format for two adults; other compositions require validated encoding.
-    if adults != 2:
-        LOG.info('BG: passenger count not verified (%s adults)', adults)
-        return []
-    if children:
-        # Observed BG code for a child age 8 on 20 November 2026 only.
-        if not (start == end == date(2026, 11, 20) and ages == [8]):
-            LOG.info('BG: child passenger encoding not verified for this date/age')
-            return []
-    # Date-dependent passenger code: confirm it in returned booking URL before use.
-    def passenger_code(day):
-        prefix = f'{day.day:03d}'
-        adult = prefix + '1019900'
-        if children:
-            return '.'.join([adult, adult, prefix + '1020180'])
-        return '.'.join([adult, adult])
-
-    # A single wide-range request is much cheaper than querying each day.
-    params = [
-        ('action', 'price'), ('tid', '211'), ('flt', country_id),
-        ('flt2', city_id), ('bfr', '1'),
-        ('data', start.strftime('%d.%m.%Y')),
-        ('d2', end.strftime('%d.%m.%Y')),
-        ('ho', '0'), ('ins', '15-40000-USD'),
-        ('p', passenger_code(start)),
-    ]
-    for n in range(nmin, nmax + 1):
-        params.append(('f7', str(n)))
-    try:
-        pages = get_programme_pages(params, start, end)
-        offers = []
-        seen_urls = set()
-        for programme, page in pages:
-            for offer in parse_offers(page):
-                if offer['source'] not in seen_urls:
-                    offers.append(offer)
-                    seen_urls.add(offer['source'])
-        LOG.info('BG pages=%s, offers=%s, programmes=%s',
-                 len(pages), len(offers), [pid for pid, _ in pages])
-    except (requests.RequestException, ValueError) as exc:
-        LOG.warning('BG request failed: %s', exc)
-        return []
-    results = {}
+def inspect(case, label, html):
+    offers = parse_offers(html)
+    start = datetime.strptime(case['start'], '%d.%m.%Y').date()
+    end = datetime.strptime(case['end'], '%d.%m.%Y').date()
+    dates = Counter(o['date'] for o in offers)
+    nights = Counter(o['nights'] for o in offers)
+    reasons = Counter()
+    valid = []
     for offer in offers:
-        day = offer['date']
-        if not (start <= day <= end and nmin <= offer['nights'] <= nmax):
+        try:
+            d = datetime.strptime(offer['date'], '%d.%m.%Y').date()
+        except ValueError:
+            reasons['нет даты в ссылке'] += 1
             continue
-        if offer['link_date'] != day.strftime('%d.%m.%Y'):
-            continue
-        if offer['link_nights'] != str(offer['nights']):
-            continue
-        if offer['link_p'] != passenger_code(day):
-            continue
-        if budget is not None and offer['price_rub'] > budget:
-            continue
-        key = offer['hotel_id'] or offer['hotel']
-        item = {
-            'operator': 'Библио-Глобус', 'hotel': offer['hotel'],
-            'hotel_id': offer['hotel_id'], 'resort': offer['resort'],
-            'date': day.isoformat(), 'nights': offer['nights'],
-            'adults': adults, 'children': children, 'child_ages': ages,
-            'room': offer['room'], 'meal': offer['room'],
-            'airline': offer['airline'], 'price_rub': offer['price_rub'],
-            'rating': None, 'reviews_count': None,
-            'flight_type': 'Авиаперелёт включён (тип рейса не подтверждён)',
-            'flight_included': True, 'hotel_included': True,
-            'source': offer['source'],
+        expected = f'{d.day:03d}1019900'
+        checks = {
+            'дата вне диапазона': not start <= d <= end,
+            'неподходящие ночи': offer['nights'] not in case['nights'],
+            'ночи в ссылке не совпадают': offer['link_nights'] != str(offer['nights']),
+            'состав туристов не совпадает': offer['p'] != f'{expected}.{expected}',
+            'нет подтверждения 2 перелётов': offer['flights'] < 2,
+            'нет подтверждения проживания': offer['hotels'] < 1,
         }
-        if key not in results or item['price_rub'] < results[key]['price_rub']:
-            results[key] = item
-    LOG.info('BG %s -> %s: %s parsed, %s valid', departure_city, country, len(offers), len(results))
-    return sorted(results.values(), key=lambda x: x['price_rub'])[:limit]
+        for reason, failed in checks.items():
+            if failed:
+                reasons[reason] += 1
+        if not any(checks.values()):
+            valid.append(offer)
+    print(f'  [{label}] HTML={len(html)} | предложений={len(offers)} | строго подходящих={len(valid)}', flush=True)
+    print(f'    даты ссылок: {dict(dates.most_common(6))}; ночи: {dict(nights.most_common(8))}', flush=True)
+    print(f'    причины отклонения: {dict(reasons)}', flush=True)
+    for o in sorted(valid, key=lambda item: item['price'])[:3]:
+        print(f"    {o['hotel']} | {o['price']:,} ₽ | {o['date']} | {o['nights']} ночей", flush=True)
+        print('    ' + o['url'], flush=True)
+    return valid
+
+
+def run_case(case):
+    print('\n' + '=' * 68, flush=True)
+    print(f"{case['name']} | {case['start']}–{case['end']} | ночи {case['nights']}", flush=True)
+    known = {item[1] for item in case['templates']}
+    common_html, common_url = fetch(BASE, params_for(case))
+    print(f'Общая страница: HTTP 200 | HTML={len(common_html)} | {common_url[:160]}', flush=True)
+    discovered = discover(common_html)
+    print(f'Найдено упоминаний разных ID программ: {len(discovered)}', flush=True)
+    print(f'Первые ID: {discovered[:25]}', flush=True)
+    inspect(case, 'общая страница', common_html)
+    for label, template, extras in case['templates']:
+        html, url = fetch(urljoin(BASE, 'price.shtml'), params_for(case, template, extras))
+        print(f'  Запрос программы {template}: HTTP 200 | URL={url[:160]}', flush=True)
+        inspect(case, label, html)
+    additional = [p for p in discovered if p not in known][:4]
+    print(f'Дополнительные программы для проверки: {additional}', flush=True)
+    for template in additional:
+        try:
+            html, _ = fetch(urljoin(BASE, 'price.shtml'), params_for(case, template))
+            inspect(case, f'автоматически найденная {template}', html)
+        except Exception as exc:
+            print(f'  Программа {template}: {type(exc).__name__}: {exc}', flush=True)
+    if not discovered:
+        print('В общей HTML-странице ID программ не обнаружены: для универсального поиска нужен другой источник программ.', flush=True)
+
+
+if __name__ == '__main__':
+    print('=== BG: САМОСТОЯТЕЛЬНАЯ ПРОВЕРКА ПРОГРАММ, БЕЗ bg_search.py ===', flush=True)
+    for case in CASES:
+        try:
+            run_case(case)
+        except Exception as exc:
+            print(f"ОШИБКА {case['name']}: {type(exc).__name__}: {exc}", flush=True)
+            traceback.print_exc()
+    print('\n=== ГОТОВО ===', flush=True)
