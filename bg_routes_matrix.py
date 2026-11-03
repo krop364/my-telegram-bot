@@ -341,19 +341,29 @@ def main():
 
     countries = load_catalog(
         'bg_countries.json',
-        '1005',
+        '1004',
     )
 
     departures = load_catalog(
         'bg_departures.json',
-        '1004',
+        '1005',
     )
 
     print(
         f'Каталоги: стран {len(countries)}, '
         f'городов вылета {len(departures)}'
     )
-
+    print('\n=== ПРОВЕРКА ИДЕНТИФИКАТОРОВ ===')
+    
+    print('Первые 5 стран:')
+    for ident, title, _ in countries[:5]:
+        print(ident, '|', title)
+    
+    print('Первые 5 городов вылета:')
+    for ident, title, _ in departures[:5]:
+        print(ident, '|', title)
+    
+    return
     # Select countries across the entire sorted catalog.
     # No hardcoded list of Turkey/Egypt/Thailand.
     if args.all:
