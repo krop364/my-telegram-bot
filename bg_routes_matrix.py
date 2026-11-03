@@ -30,8 +30,10 @@ HEADERS = {
 }
 
 
+
 def load_catalog(filename, prefix):
     path = ROOT / filename
+
     if not path.is_file():
         raise FileNotFoundError(
             f'{filename} отсутствует рядом с bg_routes_matrix.py'
@@ -39,16 +41,30 @@ def load_catalog(filename, prefix):
 
     raw = json.loads(path.read_text(encoding='utf-8-sig'))
 
+    print(f'\n=== ДИАГНОСТИКА КАТАЛОГА: {filename} ===')
+    print('Тип данных:', type(raw).__name__)
+
     if isinstance(raw, dict):
-        raw = (
-            raw.get('entries')
-            or raw.get('items')
-            or raw.get('data')
-            or []
-        )
+        print('Ключи верхнего уровня:', list(raw.keys())[:20])
+
+        for key in ('entries', 'items', 'data', 'countries', 'departures'):
+            value = raw.get(key)
+            if isinstance(value, list):
+                raw = value
+                print('Список найден в поле:', key)
+                break
 
     if not isinstance(raw, list):
-        raise ValueError(f'{filename}: ожидается список объектов')
+        print('Пример содержимого:', repr(raw)[:1000])
+        raise ValueError(
+            f'{filename}: не удалось найти список записей'
+        )
+
+    print('Всего записей:', len(raw))
+    print('Первые три записи:')
+
+    for row in raw[:3]:
+        print(repr(row)[:1000])
 
     found = {}
 
@@ -56,20 +72,40 @@ def load_catalog(filename, prefix):
         if not isinstance(row, dict):
             continue
 
-        ident = str(row.get('id') or row.get('ID') or '')
+        ident = str(
+            row.get('id')
+            or row.get('ID')
+            or row.get('value')
+            or ''
+        )
+
         title = str(
             row.get('title_ru')
             or row.get('title')
             or row.get('name')
+            or row.get('label')
             or ''
         ).strip()
 
         if ident.startswith(prefix) and ident.isdigit() and title:
             found[ident] = (ident, title, row)
 
+    print(
+        f'Записей с ID, начинающимся на {prefix}:',
+        len(found)
+    )
+
     if not found:
+        print(
+            'ВНИМАНИЕ: структура каталога отличается '
+            'от ожидаемой.'
+        )
+        print(
+            'Пришли эти диагностические строки — '
+            'по ним определим правильные поля.'
+        )
         raise ValueError(
-            f'{filename}: нет записей с ID {prefix}...'
+            f'{filename}: формат записей требует уточнения'
         )
 
     return sorted(
