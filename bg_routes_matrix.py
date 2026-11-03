@@ -1,200 +1,465 @@
 
-"""Universal BG catalog probe. Only reads local catalogs; no bot imports or edits.
-Run: python bg_routes_matrix.py
-Optional: python bg_routes_matrix.py --all
+"""Universal Biblio-Globus route and price diagnostic.
+
+Reads:
+    bg_countries.json
+    bg_departures.json
+
+Checks:
+    xml=11 -> tour programs
+    xml=51 -> published prices and booking links
+
+Standalone script. Does not import or modify bot.py or bg_search.py.
+
+Run:
+    python bg_routes_matrix.py
+
+Optional:
+    python bg_routes_matrix.py --all
+    python bg_routes_matrix.py --countries 20
+    python bg_routes_matrix.py --max-schedule 60 --max-prices 20
 """
+
 import argparse
 import json
 import re
+import traceback
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import requests
 
-BASE = 'https://www.bgoperator.ru/'
-API = urljoin(BASE, 'site')
+
+BASE = "https://www.bgoperator.ru/"
+API = urljoin(BASE, "site")
 ROOT = Path(__file__).resolve().parent
 
-# Only these two-adult codes were verified in prior BG responses.
-VERIFIED = {
-    '15.11.2026': '0151019900.0151019900',
-    '20.11.2026': '0201019900.0201019900',
-}
+TIMEOUT = 35
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125.0 Safari/537.36',
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'Accept-Language': 'ru-RU,ru;q=0.9',
-    'Referer': BASE,
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "ru-RU,ru;q=0.9",
+    "Referer": BASE,
 }
 
+# These codes were observed in our previous BG tests.
+# We do not extrapolate them to arbitrary dates.
+VERIFIED_PERSONS = {
+    "15.11.2026": "0151019900.0151019900",
+    "20.11.2026": "0201019900.0201019900",
+}
+
+TEST_DATES = tuple(VERIFIED_PERSONS)
 
 
-def load_catalog(filename, prefix):
+def normalize(value):
+    return re.sub(
+        r"\s+",
+        " ",
+        str(value or "").strip().casefold().replace("ё", "е"),
+    )
+
+
+def load_catalog(filename):
     path = ROOT / filename
 
     if not path.is_file():
         raise FileNotFoundError(
-            f'{filename} отсутствует рядом с bg_routes_matrix.py'
+            f"Не найден {filename} рядом с bg_routes_matrix.py"
         )
 
-    raw = json.loads(path.read_text(encoding='utf-8-sig'))
+    data = json.loads(
+        path.read_text(encoding="utf-8-sig")
+    )
 
-    print(f'\n=== ДИАГНОСТИКА КАТАЛОГА: {filename} ===')
-    print('Тип данных:', type(raw).__name__)
-
-    if isinstance(raw, dict):
-        print('Ключи верхнего уровня:', list(raw.keys())[:20])
-
-        for key in ('entries', 'items', 'data', 'countries', 'departures'):
-            value = raw.get(key)
-            if isinstance(value, list):
-                raw = value
-                print('Список найден в поле:', key)
-                break
-
-    if not isinstance(raw, list):
-        print('Пример содержимого:', repr(raw)[:1000])
+    if not isinstance(data, list):
         raise ValueError(
-            f'{filename}: не удалось найти список записей'
+            f"{filename}: ожидается JSON-список"
         )
 
-    print('Всего записей:', len(raw))
-    print('Первые три записи:')
-
-    for row in raw[:3]:
-        print(repr(row)[:1000])
-
-    found = {}
-
-    for row in raw:
-        if not isinstance(row, dict):
-            continue
-
-        ident = str(
-            row.get('id')
-            or row.get('ID')
-            or row.get('value')
-            or ''
-        )
-
-        title = str(
-            row.get('title_ru')
-            or row.get('title')
-            or row.get('name')
-            or row.get('label')
-            or ''
-        ).strip()
-
-        if ident.startswith(prefix) and ident.isdigit() and title:
-            found[ident] = (ident, title, row)
+    rows = [
+        row
+        for row in data
+        if isinstance(row, dict)
+    ]
 
     print(
-        f'Записей с ID, начинающимся на {prefix}:',
-        len(found)
+        f"Каталог {filename}: "
+        f"{len(rows)} записей"
     )
 
-    if not found:
-        print(
-            'ВНИМАНИЕ: структура каталога отличается '
-            'от ожидаемой.'
-        )
-        print(
-            'Пришли эти диагностические строки — '
-            'по ним определим правильные поля.'
-        )
-        raise ValueError(
-            f'{filename}: формат записей требует уточнения'
-        )
+    return rows
 
-    return sorted(
-        found.values(),
-        key=lambda x: x[1].casefold(),
+
+def build_catalogs():
+    countries_raw = load_catalog("bg_countries.json")
+    cities_raw = load_catalog("bg_departures.json")
+
+    countries = {}
+
+    for row in countries_raw:
+        country_id = str(row.get("id") or "")
+        title = str(row.get("title_ru") or "").strip()
+
+        if not (
+            country_id.startswith("1004")
+            and country_id.isdigit()
+            and title
+        ):
+            continue
+
+        countries[country_id] = row
+
+    cities = {}
+
+    for row in cities_raw:
+        city_id = str(row.get("id") or "")
+        title = str(row.get("title_ru") or "").strip()
+
+        if not (
+            city_id.startswith("1005")
+            and city_id.isdigit()
+            and title
+        ):
+            continue
+
+        cities[city_id] = row
+
+    active_countries = [
+        row
+        for row in countries.values()
+        if normalize(row.get("tours")) == "да"
+    ]
+
+    active_countries.sort(
+        key=lambda row: normalize(
+            row.get("title_ru")
+        )
     )
 
-
-def allowed_departures(country, departures):
-    raw = country[2].get('town_from')
-
-    if not raw:
-        return departures
-
-    ids = set(re.findall(r'1004\d+', str(raw)))
-
-    return (
-        [d for d in departures if d[0] in ids]
-        if ids
-        else departures
+    print()
+    print("=== КАТАЛОГИ BG ===")
+    print("Всего стран:", len(countries))
+    print(
+        "Стран с tours=Да:",
+        len(active_countries)
     )
+    print(
+        "Географических записей 1005:",
+        len(cities)
+    )
+
+    return active_countries, cities
+
+
+def get_allowed_cities(country, cities):
+    """Use country.town_from as BG's departure-city list."""
+
+    raw = str(country.get("town_from") or "")
+
+    if not raw.strip():
+        return []
+
+    city_ids = [
+        value.strip()
+        for value in raw.split("#")
+        if value.strip()
+    ]
+
+    result = []
+    seen = set()
+
+    for city_id in city_ids:
+        if city_id in seen:
+            continue
+
+        seen.add(city_id)
+
+        row = cities.get(city_id)
+
+        if not row:
+            continue
+
+        result.append((
+            city_id,
+            str(row.get("title_ru") or ""),
+        ))
+
+    return result
 
 
 def get_json(session, params):
     response = session.get(
         API,
         params=params,
-        timeout=35,
+        timeout=TIMEOUT,
     )
+
     response.raise_for_status()
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        raise ValueError(
+            "BG вернул не JSON: "
+            + response.text[:180]
+        )
 
     if not isinstance(data, dict):
-        raise ValueError('Ответ BG не является JSON-объектом')
+        raise ValueError(
+            "BG вернул JSON не в формате объекта"
+        )
 
     return data
 
 
-def nights_set(value):
+def parse_nights(value):
+    """Parse durations such as '/6/9/13'."""
+
     return {
-        int(x)
-        for x in re.findall(r'\d+', str(value or ''))
+        int(number)
+        for number in re.findall(
+            r"\d+",
+            str(value or ""),
+        )
     }
 
 
-def inspect_price(
+def discover_programs(
     session,
-    city_id,
     country_id,
+    city_id,
+):
+    """xml=11: flt=country, flt2=departure city."""
+
+    data = get_json(
+        session,
+        [
+            ("action", "files"),
+            ("flt", country_id),
+            ("flt2", city_id),
+            ("xml", "11"),
+        ],
+    )
+
+    if data.get("ERROR"):
+        print(
+            "    BG ERROR:",
+            str(data["ERROR"])[:180],
+        )
+        return []
+
+    entries = data.get("entries") or []
+
+    if not isinstance(entries, list):
+        print(
+            "    ОШИБКА: entries не список"
+        )
+        return []
+
+    return [
+        entry
+        for entry in entries
+        if isinstance(entry, dict)
+    ]
+
+
+def matching_programs(entries):
+    """Find programs on previously tested dates."""
+
+    result = {}
+    seen_dates = set()
+
+    for row in entries:
+        day = str(row.get("date") or "")
+
+        if day:
+            seen_dates.add(day)
+
+        if day not in VERIFIED_PERSONS:
+            continue
+
+        program = str(
+            row.get("id_price") or ""
+        )
+
+        if not program.isdigit():
+            continue
+
+        durations = sorted(
+            n
+            for n in parse_nights(
+                row.get("duration")
+            )
+            if 1 <= n <= 30
+        )
+
+        for nights in durations:
+            key = (
+                program,
+                day,
+                nights,
+            )
+
+            result.setdefault(
+                key,
+                row,
+            )
+
+    return result, seen_dates
+
+
+def booking_link(
+    section,
+    entry,
+    price,
+    persons,
+    program,
+):
+    """Build URL from BG's own fragments."""
+
+    href0 = str(
+        section.get("href0") or ""
+    )
+
+    href1 = str(
+        entry.get("href1") or ""
+    )
+
+    href2 = str(
+        price.get("href2") or ""
+    )
+
+    if (
+        "/zaya" not in href0
+        or "templ=" not in href1
+    ):
+        return None
+
+    link = (
+        urljoin(BASE, href0)
+        + href1
+        + "&p="
+        + persons
+        + href2
+    )
+
+    parsed = urlsplit(link)
+    query = parse_qs(parsed.query)
+
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname not in (
+            "bgoperator.ru",
+            "www.bgoperator.ru",
+        )
+        or parsed.path != "/zaya"
+    ):
+        return None
+
+    if (
+        query.get("p", [""])[0]
+        != persons
+    ):
+        return None
+
+    if (
+        query.get("templ", [""])[0]
+        != str(program)
+    ):
+        return None
+
+    # Do NOT reject by dt or kol:
+    # those can represent one hotel/stage of a combined tour.
+    return link
+
+
+def fetch_prices(
+    session,
+    country_id,
+    city_id,
     program,
     day,
     nights,
-    persons,
 ):
+    """xml=51: obtain public prices for one program."""
+
+    persons = VERIFIED_PERSONS[day]
+
     params = [
-        ('xml', '51'),
-        ('action', 'price'),
-        ('id_price', program),
-        ('flt2', country_id),
+        ("xml", "51"),
+        ("action", "price"),
+        ("id_price", program),
+        ("flt2", city_id),
     ]
 
-    params += [
-        ('f8', meal)
-        for meal in ('BB', 'HB', 'FB', 'AI', 'AO')
-    ]
+    params.extend(
+        ("f8", meal)
+        for meal in (
+            "BB",
+            "HB",
+            "FB",
+            "AI",
+            "AO",
+        )
+    )
 
-    params += [
-        ('entr', '-100'),
-        ('data', day),
-        ('f7', str(nights)),
-        ('flt', city_id),
-        ('p', persons),
-    ]
+    params.extend([
+        ("entr", "-100"),
+        ("data", day),
+        ("f7", str(nights)),
+        ("flt", country_id),
+        ("p", persons),
+    ])
 
-    data = get_json(session, params)
+    data = get_json(
+        session,
+        params,
+    )
 
-    if data.get('ERROR'):
-        print('    BG ERROR:', str(data['ERROR'])[:130])
-        return 0
+    if data.get("ERROR"):
+        print(
+            "      BG ERROR:",
+            str(data["ERROR"])[:180],
+        )
+        return []
 
-    section = data.get('PRICE_SECTION') or {}
-    entries = section.get('entries') or []
+    section = (
+        data.get("PRICE_SECTION")
+        or {}
+    )
 
-    hotels = {
-        str(h.get('ID')): str(h.get('TITLE') or '')
-        for h in (data.get('FILTER') or {}).get('HOTELS', [])
-        if isinstance(h, dict)
-    }
+    entries = (
+        section.get("entries")
+        or []
+    )
+
+    if not isinstance(entries, list):
+        print(
+            "      ОШИБКА: PRICE_SECTION.entries не список"
+        )
+        return []
+
+    filters = data.get("FILTER") or {}
+
+    hotels = {}
+
+    if isinstance(filters, dict):
+        for hotel in filters.get("HOTELS") or []:
+            if isinstance(hotel, dict):
+                hotels[
+                    str(hotel.get("ID"))
+                ] = str(
+                    hotel.get("TITLE")
+                    or ""
+                )
 
     valid = []
     rejected = Counter()
@@ -203,448 +468,576 @@ def inspect_price(
         if not isinstance(entry, dict):
             continue
 
-        # Validate the full package, not a booking segment.
+        # Validate the package itself.
         if (
-            str(entry.get('tour_date')) != day
-            or str(entry.get('duration')) != str(nights)
+            str(entry.get("tour_date"))
+            != day
         ):
-            rejected['дата/ночи предложения'] += 1
+            rejected["дата"] += 1
             continue
 
-        for price in entry.get('prices') or []:
+        if (
+            str(entry.get("duration"))
+            != str(nights)
+        ):
+            rejected["ночи"] += 1
+            continue
+
+        prices = (
+            entry.get("prices")
+            or []
+        )
+
+        if not isinstance(prices, list):
+            continue
+
+        for price in prices:
             if not isinstance(price, dict):
                 continue
 
+            raw_rub = re.sub(
+                r"\s+",
+                "",
+                str(
+                    price.get("RUR")
+                    or ""
+                ),
+            )
+
             try:
-                rub = int(
-                    re.sub(
-                        r'\s+',
-                        '',
-                        str(price.get('RUR') or ''),
-                    )
-                )
-            except ValueError:
-                rejected['цена'] += 1
+                rub = int(raw_rub)
+            except (
+                ValueError,
+                TypeError,
+            ):
+                rejected["цена"] += 1
                 continue
 
             if rub <= 0:
-                rejected['цена'] += 1
+                rejected["цена"] += 1
                 continue
 
-            href0 = str(section.get('href0') or '')
-            href1 = str(entry.get('href1') or '')
-            href2 = str(price.get('href2') or '')
-
-            if '/zaya' not in href0 or 'templ=' not in href1:
-                rejected['части ссылки'] += 1
-                continue
-
-            link = (
-                urljoin(BASE, href0)
-                + href1
-                + '&p='
-                + persons
-                + href2
+            link = booking_link(
+                section,
+                entry,
+                price,
+                persons,
+                program,
             )
 
-            parsed = urlsplit(link)
-            q = parse_qs(parsed.query)
-
-            if (
-                parsed.hostname not in (
-                    'bgoperator.ru',
-                    'www.bgoperator.ru',
-                )
-                or parsed.path != '/zaya'
-                or q.get('p', [''])[0] != persons
-                or q.get('templ', [''])[0] != program
-            ):
-                rejected['ссылка/программа/туристы'] += 1
+            if not link:
+                rejected["ссылка"] += 1
                 continue
 
-            # For combined tours, dt/kol can describe
-            # one booking segment rather than the full tour.
-            # Preserve the BG booking link unchanged.
-            valid.append((
-                rub,
-                hotels.get(str(entry.get('id_hotel')), ''),
-                link,
-            ))
+            hotel_id = str(
+                entry.get("id_hotel")
+                or ""
+            )
 
-    unique = {
-        link: (rub, hotel, link)
-        for rub, hotel, link in valid
-    }
+            hotel_name = hotels.get(
+                hotel_id,
+                "",
+            )
 
-    print(
-        f'    xml=51: {len(entries)} строк; '
-        f'{len(unique)} ссылок; '
-        f'отклонено {dict(rejected)}'
+            airline = str(
+                entry.get("aircompany")
+                or ""
+            )
+
+            valid.append({
+                "price_rub": rub,
+                "hotel": hotel_name,
+                "hotel_id": hotel_id,
+                "airline": airline,
+                "link": link,
+            })
+
+    # One record per unique booking link.
+    unique = {}
+
+    for item in valid:
+        link = item["link"]
+
+        if (
+            link not in unique
+            or item["price_rub"]
+            < unique[link]["price_rub"]
+        ):
+            unique[link] = item
+
+    offers = sorted(
+        unique.values(),
+        key=lambda x: x["price_rub"],
     )
 
-    for rub, hotel, link in sorted(unique.values())[:1]:
-        q = parse_qs(urlsplit(link).query)
+    print(
+        "      xml=51:",
+        len(entries),
+        "строк,",
+        len(offers),
+        "уникальных предложений",
+    )
 
+    if rejected:
         print(
-            f'    Пример: '
-            f'{hotel or "[отель без названия]"} '
-            f'| {rub:,} ₽'
+            "      Отклонено:",
+            dict(rejected),
+        )
+
+    if section.get("next_page"):
+        print(
+            "      ВНИМАНИЕ: BG указал next_page; "
+            "проверена только полученная страница"
+        )
+
+    for item in offers[:2]:
+        query = parse_qs(
+            urlsplit(
+                item["link"]
+            ).query
         )
 
         print(
-            '    Ссылка: dt=',
-            q.get('dt', [''])[0],
-            'kol=',
-            q.get('kol', [''])[0],
-            '| полный тур:',
+            "      ОТЕЛЬ:",
+            item["hotel"]
+            or "[название отсутствует]",
+        )
+
+        print(
+            "      ЦЕНА:",
+            f'{item["price_rub"]:,} ₽',
+        )
+
+        print(
+            "      ПОЛНЫЙ ТУР:",
             day,
+            "|",
             nights,
-            'ночей',
+            "ночей",
         )
 
-    return len(unique)
+        print(
+            "      В ССЫЛКЕ:",
+            "dt=",
+            query.get("dt", [""])[0],
+            "| kol=",
+            query.get("kol", [""])[0],
+        )
+
+        print(
+            "      БРОНИРОВАНИЕ:",
+            item["link"][:350],
+        )
+
+    return offers
+
+
+def select_countries(
+    countries,
+    count,
+    all_countries,
+):
+    if all_countries:
+        return countries
+
+    count = max(
+        1,
+        min(count, len(countries)),
+    )
+
+    # Spread the sample across the whole catalog.
+    indexes = [
+        i * len(countries) // count
+        for i in range(count)
+    ]
+
+    return [
+        countries[i]
+        for i in indexes
+    ]
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='BG: universal catalog and API test'
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Select all countries with tours=Да",
     )
 
     parser.add_argument(
-        '--all',
-        action='store_true',
-        help='проверить расписание всех стран',
-    )
-
-    parser.add_argument(
-        '--countries',
+        "--countries",
         type=int,
-        default=12,
-        help='число стран в выборке',
+        default=15,
+        help="Countries in the default sample",
     )
 
     parser.add_argument(
-        '--max-schedule',
+        "--max-schedule",
         type=int,
-        default=30,
-        help='лимит запросов xml=11',
+        default=45,
+        help="Maximum xml=11 requests",
     )
 
     parser.add_argument(
-        '--max-prices',
+        "--max-prices",
         type=int,
-        default=12,
-        help='лимит запросов xml=51',
+        default=15,
+        help="Maximum xml=51 requests",
+    )
+
+    parser.add_argument(
+        "--cities-per-country",
+        type=int,
+        default=3,
+        help="Departure cities checked per country",
     )
 
     args = parser.parse_args()
 
-    countries = load_catalog(
-        'bg_countries.json',
-        '1004',
-    )
-
-    departures = load_catalog(
-        'bg_departures.json',
-        '1005',
-    )
-
     print(
-        f'Каталоги: стран {len(countries)}, '
-        f'городов вылета {len(departures)}'
+        "=== BG: УНИВЕРСАЛЬНЫЙ ТЕСТ "
+        "ВСЕХ ДОСТУПНЫХ НАПРАВЛЕНИЙ ==="
     )
-  
-    print('\n=== ПРОВЕРКА ИЗВЕСТНЫХ ID ===')
 
-    known_ids = {
-        'Москва (вылет)': '100411293179',
-        'Екатеринбург (вылет)': '100410000051',
-        'Казань (вылет)': '100410000047',
-        'Турция (назначение)': '100510000863',
-        'Таиланд (назначение)': '100510000892',
-        'Египет (назначение)': '100510345650',
-    }
+    countries, cities = build_catalogs()
 
-    for label, target_id in known_ids.items():
-        print(f'\n{label}: {target_id}')
+    selected = select_countries(
+        countries,
+        args.countries,
+        args.all,
+    )
 
-        matches = []
-
-        for filename in (
-            'bg_countries.json',
-            'bg_departures.json',
-        ):
-            rows = json.loads(
-                (ROOT / filename).read_text(
-                    encoding='utf-8-sig'
-                )
-            )
-
-            for row in rows:
-                if (
-                    isinstance(row, dict)
-                    and str(row.get('id')) == target_id
-                ):
-                    matches.append((filename, row))
-
-        if matches:
-            for filename, row in matches:
-                print('  Каталог:', filename)
-                print('  Запись:', row)
-        else:
-            print('  В этих каталогах ID не найден')
-
-    print('\n=== СТРАНЫ С ТУРАМИ ===')
-
-    with_tours = [
-        row for row in json.loads(
-            (ROOT / 'bg_countries.json').read_text(
-                encoding='utf-8-sig'
-            )
-        )
-        if isinstance(row, dict)
-        and str(row.get('tours', '')).strip().casefold() == 'да'
-    ]
-
-    print('Стран с tours=Да:', len(with_tours))
-
-    for row in with_tours[:15]:
-        print(
-            row.get('id'),
-            '|',
-            row.get('title_ru'),
-            '| town_from:',
-            str(row.get('town_from', ''))[:100],
-        )
-
-    return
-
-    # Select countries across the entire sorted catalog.
-    # No hardcoded list of Turkey/Egypt/Thailand.
-    if args.all:
-        selected = countries
-    else:
-        count = max(
-            1,
-            min(args.countries, len(countries)),
-        )
-
-        selected = [
-            countries[i * len(countries) // count]
-            for i in range(count)
-        ]
-
-    print(
-        'Стран для теста:',
-        len(selected),
-        '| лимиты:',
+    max_schedule = max(
+        1,
         args.max_schedule,
-        'xml=11,',
+    )
+
+    max_prices = max(
+        0,
         args.max_prices,
-        'xml=51',
+    )
+
+    max_cities = max(
+        1,
+        args.cities_per_country,
+    )
+
+    print()
+    print(
+        "Выбрано стран:",
+        len(selected),
+    )
+
+    print(
+        "Лимит xml=11:",
+        max_schedule,
+    )
+
+    print(
+        "Лимит xml=51:",
+        max_prices,
+    )
+
+    print(
+        "Городов на страну:",
+        max_cities,
+    )
+
+    print(
+        "Проверенные даты для цен:",
+        ", ".join(TEST_DATES),
     )
 
     session = requests.Session()
-    session.headers.update(HEADERS)
+    session.headers.update(
+        HEADERS
+    )
 
     schedule_calls = 0
     price_calls = 0
-    successful = 0
+
+    countries_with_schedule = set()
+    countries_with_prices = set()
+
+    total_offers = 0
     stats = Counter()
 
-    for country_id, country_name, country_row in selected:
-        if schedule_calls >= args.max_schedule:
-            print('Достигнут лимит xml=11')
+    for country in selected:
+        if schedule_calls >= max_schedule:
+            print(
+                "\nДостигнут лимит xml=11."
+            )
             break
 
-        cities = allowed_departures(
-            (country_id, country_name, country_row),
-            departures,
+        country_id = str(
+            country.get("id")
         )
 
-        if not cities:
-            print(
-                f'\n{country_name}: '
-                'нет разрешённых городов вылета в каталоге'
-            )
-            stats['нет городов'] += 1
-            continue
+        country_name = str(
+            country.get("title_ru")
+            or ""
+        )
+
+        departure_cities = get_allowed_cities(
+            country,
+            cities,
+        )
+
+        print()
+        print("=" * 72)
 
         print(
-            f'\n=== {country_name} ({country_id}) ==='
+            "СТРАНА:",
+            country_name,
+            "|",
+            country_id,
         )
 
-        for city_id, city_name, _ in cities[:3]:
-            if schedule_calls >= args.max_schedule:
+        print(
+            "Городов в town_from:",
+            len(departure_cities),
+        )
+
+        if not departure_cities:
+            stats["нет городов в town_from"] += 1
+
+            print(
+                "Нет городов вылета в каталоге. "
+                "Страна не исключается из будущего "
+                "универсального поиска."
+            )
+
+            continue
+
+        # Prefer cities that appear in the country's
+        # published departure list. No country-specific IDs.
+        checked_cities = departure_cities[
+            :max_cities
+        ]
+
+        for city_id, city_name in checked_cities:
+            if schedule_calls >= max_schedule:
                 break
 
             schedule_calls += 1
 
-            try:
-                data = get_json(
-                    session,
-                    [
-                        ('action', 'files'),
-                        ('flt', city_id),
-                        ('flt2', country_id),
-                        ('xml', '11'),
-                    ],
-                )
-
-            except (requests.RequestException, ValueError) as exc:
-                print(
-                    f'  {city_name}: ошибка xml=11: '
-                    f'{str(exc)[:140]}'
-                )
-                stats['ошибка расписания'] += 1
-                continue
-
-            rows = data.get('entries') or []
-
-            if not isinstance(rows, list):
-                print(
-                    f'  {city_name}: entries не список'
-                )
-                continue
-
+            print()
             print(
-                f'  {city_name}: '
-                f'xml=11 строк {len(rows)}'
+                "  ВЫЛЕТ:",
+                city_name,
+                "|",
+                city_id,
             )
 
-            if not rows:
-                stats['пустое расписание'] += 1
-                continue
-
-            stats['есть расписание'] += 1
-
-            # Price requests only use previously verified
-            # passenger codes. Discovery itself is universal.
-            matching = {}
-
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-
-                day = str(row.get('date') or '')
-                program = str(row.get('id_price') or '')
-
-                if (
-                    day not in VERIFIED
-                    or not program.isdigit()
-                ):
-                    continue
-
-                for n in sorted(
-                    nights_set(row.get('duration'))
-                ):
-                    if 1 <= n <= 21:
-                        matching.setdefault(
-                            (program, day, n),
-                            row,
-                        )
-                        break
-
-            if not matching:
-                print(
-                    '    Нет совпадений на проверенные даты '
-                    '15/20.11.2026; это не значит, '
-                    'что туров нет'
+            try:
+                entries = discover_programs(
+                    session,
+                    country_id,
+                    city_id,
                 )
-                stats['нет проверенных дат'] += 1
+
+            except Exception as exc:
+                print(
+                    "    ОШИБКА xml=11:",
+                    type(exc).__name__,
+                    str(exc)[:180],
+                )
+
+                stats["ошибка xml=11"] += 1
                 continue
 
             print(
-                '    Программ/дат для цен:',
+                "    xml=11:",
+                len(entries),
+                "строк расписания",
+            )
+
+            if not entries:
+                stats["пустое расписание"] += 1
+                continue
+
+            countries_with_schedule.add(
+                country_id
+            )
+
+            stats["расписание найдено"] += 1
+
+            matching, dates = matching_programs(
+                entries
+            )
+
+            print(
+                "    Уникальных дат в расписании:",
+                len(dates),
+            )
+
+            print(
+                "    Комбинаций программ "
+                "на проверенные даты:",
                 len(matching),
             )
 
-            if price_calls >= args.max_prices:
+            if not matching:
+                stats[
+                    "нет программ на тестовые даты"
+                ] += 1
+
                 print(
-                    '    Лимит xml=51 достигнут; '
-                    'расписания продолжаем проверять'
+                    "    На 15/20.11.2026 совпадений нет. "
+                    "Это не означает отсутствие туров."
                 )
+
                 continue
 
-            for (program, day, n), row in list(
+            if price_calls >= max_prices:
+                print(
+                    "    Лимит xml=51 достигнут. "
+                    "Расписание проверено, "
+                    "цены пропущены."
+                )
+
+                continue
+
+            # At most two price checks per departure city.
+            for (
+                program,
+                day,
+                nights,
+            ), row in list(
                 matching.items()
             )[:2]:
 
-                if price_calls >= args.max_prices:
+                if price_calls >= max_prices:
                     break
 
                 price_calls += 1
 
                 route_name = re.sub(
-                    r'<[^>]+>',
-                    '',
-                    str(row.get('route') or ''),
-                )[:90]
+                    r"<[^>]+>",
+                    "",
+                    str(
+                        row.get("route")
+                        or ""
+                    ),
+                )[:100]
+
+                print()
+                print(
+                    "    ПРОГРАММА:",
+                    program,
+                )
 
                 print(
-                    '    Программа:',
-                    program,
-                    '|',
+                    "    МАРШРУТ:",
                     route_name,
-                    '|',
+                )
+
+                print(
+                    "    ДАТА:",
                     day,
-                    '|',
-                    n,
-                    'ночей',
+                    "| НОЧЕЙ:",
+                    nights,
                 )
 
                 try:
-                    total = inspect_price(
+                    offers = fetch_prices(
                         session,
-                        city_id,
                         country_id,
+                        city_id,
                         program,
                         day,
-                        n,
-                        VERIFIED[day],
+                        nights,
                     )
 
-                    if total:
-                        successful += 1
-                        stats['есть цены'] += 1
-
-                except (
-                    requests.RequestException,
-                    ValueError,
-                    TypeError,
-                ) as exc:
+                except Exception as exc:
                     print(
-                        '    Ошибка xml=51:',
-                        str(exc)[:140],
+                        "      ОШИБКА xml=51:",
+                        type(exc).__name__,
+                        str(exc)[:180],
                     )
-                    stats['ошибка цен'] += 1
 
-            # One nonempty departure schedule is enough
-            # for this country's discovery test.
-            break
+                    stats["ошибка xml=51"] += 1
+                    continue
 
-    print('\n=== ИТОГО ===')
+                if offers:
+                    countries_with_prices.add(
+                        country_id
+                    )
+
+                    total_offers += len(
+                        offers
+                    )
+
+                    stats[
+                        "запросы с ценами"
+                    ] += 1
+
+                else:
+                    stats[
+                        "запросы без подходящих цен"
+                    ] += 1
+
+    print()
+    print("=" * 72)
+    print("=== ИТОГИ УНИВЕРСАЛЬНОГО ТЕСТА ===")
 
     print(
-        'xml=11 запросов:',
-        schedule_calls,
-        '| xml=51 запросов:',
-        price_calls,
-        '| запросов с проверенными ссылками:',
-        successful,
+        "Стран в выборке:",
+        len(selected),
     )
 
     print(
-        'Статистика:',
+        "Стран с непустым xml=11:",
+        len(countries_with_schedule),
+    )
+
+    print(
+        "Стран с ценами и ссылками:",
+        len(countries_with_prices),
+    )
+
+    print(
+        "Запросов xml=11:",
+        schedule_calls,
+    )
+
+    print(
+        "Запросов xml=51:",
+        price_calls,
+    )
+
+    print(
+        "Всего найдено предложений:",
+        total_offers,
+    )
+
+    print(
+        "Статистика:",
         dict(stats),
     )
 
+    print()
     print(
-        'Внимание: это выборочная проверка. '
-        'Отсутствие цен на двух тестовых датах '
-        'не означает отсутствие туров.'
+        "ВАЖНО: тест выборочный. "
+        "Страны без цен на проверенных датах "
+        "не считаются недоступными."
+    )
+
+    print(
+        "Ссылки являются ссылками BG, "
+        "но тест не подтверждает завершение бронирования."
+    )
+
+    print(
+        "\n=== КОНЕЦ ==="
     )
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        raise
