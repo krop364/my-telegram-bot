@@ -2561,8 +2561,17 @@ def ask_gpt(user_id, user_message):
                     if value is not None:
                         search_params[key] = value
 
-                anex_tours = search_anex_tours(**search_params)
-                bg_tours = search_bg_tours(**search_params)
+                # Keep both providers independent: BG failure must not affect ANEX.
+                try:
+                    anex_tours = search_anex_tours(**search_params)
+                except Exception as exc:
+                    print('ANEX SEARCH ERROR:', type(exc).__name__, str(exc)[:200], flush=True)
+                    anex_tours = []
+                try:
+                    bg_tours = search_bg_tours(**search_params)
+                except Exception as exc:
+                    print('BG SEARCH ERROR:', type(exc).__name__, str(exc)[:200], flush=True)
+                    bg_tours = []
 
                 if anex_tours:
                     anex_context = (
