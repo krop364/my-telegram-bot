@@ -353,17 +353,72 @@ def main():
         f'Каталоги: стран {len(countries)}, '
         f'городов вылета {len(departures)}'
     )
-    print('\n=== ПРОВЕРКА ИДЕНТИФИКАТОРОВ ===')
-    
-    print('Первые 5 стран:')
-    for ident, title, _ in countries[:5]:
-        print(ident, '|', title)
-    
-    print('Первые 5 городов вылета:')
-    for ident, title, _ in departures[:5]:
-        print(ident, '|', title)
-    
+  
+    print('\n=== ПРОВЕРКА ИЗВЕСТНЫХ ID ===')
+
+    known_ids = {
+        'Москва (вылет)': '100411293179',
+        'Екатеринбург (вылет)': '100410000051',
+        'Казань (вылет)': '100410000047',
+        'Турция (назначение)': '100510000863',
+        'Таиланд (назначение)': '100510000892',
+        'Египет (назначение)': '100510345650',
+    }
+
+    for label, target_id in known_ids.items():
+        print(f'\n{label}: {target_id}')
+
+        matches = []
+
+        for filename in (
+            'bg_countries.json',
+            'bg_departures.json',
+        ):
+            rows = json.loads(
+                (ROOT / filename).read_text(
+                    encoding='utf-8-sig'
+                )
+            )
+
+            for row in rows:
+                if (
+                    isinstance(row, dict)
+                    and str(row.get('id')) == target_id
+                ):
+                    matches.append((filename, row))
+
+        if matches:
+            for filename, row in matches:
+                print('  Каталог:', filename)
+                print('  Запись:', row)
+        else:
+            print('  В этих каталогах ID не найден')
+
+    print('\n=== СТРАНЫ С ТУРАМИ ===')
+
+    with_tours = [
+        row for row in json.loads(
+            (ROOT / 'bg_countries.json').read_text(
+                encoding='utf-8-sig'
+            )
+        )
+        if isinstance(row, dict)
+        and str(row.get('tours', '')).strip().casefold() == 'да'
+    ]
+
+    print('Стран с tours=Да:', len(with_tours))
+
+    for row in with_tours[:15]:
+        print(
+            row.get('id'),
+            '|',
+            row.get('title_ru'),
+            '| town_from:',
+            str(row.get('town_from', ''))[:100],
+        )
+
     return
+
     # Select countries across the entire sorted catalog.
     # No hardcoded list of Turkey/Egypt/Thailand.
     if args.all:
