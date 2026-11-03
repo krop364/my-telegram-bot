@@ -93,11 +93,13 @@ def parse_offers(html):
         accommodation_count = len(tr.select('td.c_cn li.i_an'))
         # В некоторых таблицах услуги выводятся в соседних строках;
         # без явных маркеров пакет не считаем подтверждённым.
-        offers.append({'hotel': hotel, 'nights': int(night_match.group(1)),
+        # Если заголовок отеля отсутствует, не приписываем название от предыдущей строки.
+        offers.append({'hotel': hotel or '[название не определено]', 'nights': int(night_match.group(1)),
                        'price': int(price_digits), 'url': url,
                        'date': (query.get('dt') or [''])[0],
                        'link_nights': (query.get('kol') or [''])[0],
                        'p': (query.get('p') or [''])[0],
+                       'templ': (query.get('templ') or [''])[0],
                        'flights': flight_count, 'hotels': accommodation_count})
     return offers
 
@@ -107,6 +109,7 @@ def inspect(case, label, html):
     start = datetime.strptime(case['start'], '%d.%m.%Y').date()
     end = datetime.strptime(case['end'], '%d.%m.%Y').date()
     dates = Counter(o['date'] for o in offers)
+    real_templates = Counter(o['templ'] for o in offers)
     nights = Counter(o['nights'] for o in offers)
     reasons = Counter()
     valid = []
@@ -133,16 +136,21 @@ def inspect(case, label, html):
     print(f'  [{label}] HTML={len(html)} | предложений={len(offers)} | строго подходящих={len(valid)}', flush=True)
     print(f'    даты ссылок: {dict(dates.most_common(6))}; ночи: {dict(nights.most_common(8))}', flush=True)
     print(f'    причины отклонения: {dict(reasons)}', flush=True)
-    for o in sorted(valid, key=lambda item: item['price'])[:3]:
+    print(f'    ФАКТИЧЕСКИЕ templ из ссылок: {dict(real_templates)}', flush=True)
+    # Одна и та же заявка может присутствовать в нескольких строках таблицы.
+    unique = list({o['url']: o for o in valid}.values())
+    print(f'    уникальных ссылок среди подходящих: {len(unique)}', flush=True)
+    for o in sorted(unique, key=lambda item: item['price'])[:3]:
         print(f"    {o['hotel']} | {o['price']:,} ₽ | {o['date']} | {o['nights']} ночей", flush=True)
         print('    ' + o['url'], flush=True)
-    return valid
+    return unique
 
 
 def run_case(case):
     print('\n' + '=' * 68, flush=True)
     print(f"{case['name']} | {case['start']}–{case['end']} | ночи {case['nights']}", flush=True)
     known = {item[1] for item in case['templates']}
+    actual_seen = set()
     common_html, common_url = fetch(BASE, params_for(case))
     print(f'Общая страница: HTTP 200 | HTML={len(common_html)} | {common_url[:160]}', flush=True)
     discovered = discover(common_html)
@@ -152,15 +160,21 @@ def run_case(case):
     for label, template, extras in case['templates']:
         html, url = fetch(urljoin(BASE, 'price.shtml'), params_for(case, template, extras))
         print(f'  Запрос программы {template}: HTTP 200 | URL={url[:160]}', flush=True)
-        inspect(case, label, html)
+        actual_seen.update(o['templ'] for o in inspect(case, label, html) if o['templ'])
     additional = [p for p in discovered if p not in known][:4]
     print(f'Дополнительные программы для проверки: {additional}', flush=True)
     for template in additional:
         try:
             html, _ = fetch(urljoin(BASE, 'price.shtml'), params_for(case, template))
-            inspect(case, f'автоматически найденная {template}', html)
+            found = inspect(case, f'автоматически найденная {template}', html)
+            actual = {o['templ'] for o in found if o['templ']}
+            print(f'    ID из HTML={template}; реальные шаблоны в ссылках={sorted(actual)}', flush=True)
+            if actual and template not in actual:
+                print('    ВНИМАНИЕ: найденный ID не является templ найденных туров; возможен общий/переадресующий шаблон.', flush=True)
         except Exception as exc:
             print(f'  Программа {template}: {type(exc).__name__}: {exc}', flush=True)
+    if actual_seen:
+        print(f'Реальные шаблоны известных программ: {sorted(actual_seen)}', flush=True)
     if not discovered:
         print('В общей HTML-странице ID программ не обнаружены: для универсального поиска нужен другой источник программ.', flush=True)
 
