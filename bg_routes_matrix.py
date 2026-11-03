@@ -1,190 +1,125 @@
-"""Самостоятельная проверка программ Библио-Глобуса в GitHub Actions.
-Не импортирует bg_search.py и не меняет бот.
-Зависимости: requests, beautifulsoup4.
+"""Проверка реального JSON API BG (xml=51), без bg_search.py и Render.
+Запуск: python bg_routes_matrix.py
+Зависимость: requests. Только диагностика, ничего не записывает.
 """
+import json
 import re
 import traceback
 from collections import Counter
-from datetime import datetime, date
-from urllib.parse import urljoin, urlparse, parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 import requests
-from bs4 import BeautifulSoup
 
-BASE = 'https://www.bgoperator.ru/'
-SESSION = requests.Session()
-SESSION.headers.update({'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125 Safari/537.36', 'Accept-Language': 'ru-RU,ru;q=0.9'})
-
+BASE = 'https://www.bgoperator.ru/site'
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'Accept-Language': 'ru-RU,ru;q=0.9',
+    'Referer': 'https://www.bgoperator.ru/',
+}
+# Первые две программы и параметры взяты из реальных запросов браузера (HAR).
+# Третий тест проверяет перенос тех же параметров на другую дату.
 CASES = [
-    {'name': 'Москва → Турция', 'flt': '100411293179', 'flt2': '100510000863',
-     'start': '20.11.2026', 'end': '20.11.2026', 'nights': [7],
-     'templates': [('Турция: подтверждённая программа для 2 взрослых', '121110211811', {})]},
-    {'name': 'Екатеринбург → Таиланд', 'flt': '100410000051', 'flt2': '100510000892',
-     'start': '15.11.2026', 'end': '22.11.2026', 'nights': [11, 12, 13],
-     'templates': [
-         ('Паттайя / Аэрофлот', '121163457355', {'ins': '0-50000-USD', 'f50': '104611014871', 'f51': '104625988050'}),
-         ('Пхукет / Аэрофлот', '121166921602', {'ins': '0-50000-USD'}),
-     ]},
-    {'name': 'Казань → Египет', 'flt': '100410000047', 'flt2': '100510345650',
-     'start': '15.11.2026', 'end': '22.11.2026', 'nights': [6, 7, 8, 9], 'templates': []},
+    ('HAR: Москва → Турция, 15.11, 8 ночей, программа 1', '121110228298', '15.11.2026', 8, '0101019900.0101019900'),
+    ('HAR: Москва → Турция, 15.11, 8 ночей, программа 2', '121110211811', '15.11.2026', 8, '0101019900.0101019900'),
+    ('Проверка новой даты: Москва → Турция, 20.11, 7 ночей', '121110211811', '20.11.2026', 7, '0201019900.0201019900'),
 ]
 
 
-def fetch(url, params):
-    response = SESSION.get(url, params=params, timeout=40)
+def request_params(programme, date, nights, persons):
+    # Повторяем параметры из HAR, включая повторяющиеся f8.
+    return [
+        ('xml', '51'), ('action', 'price'), ('id_price', programme),
+        ('flt2', '100510000863'),
+        ('f8', 'BB'), ('f8', 'HB'), ('f8', 'FB'), ('f8', 'AI'), ('f8', 'AO'),
+        ('entr', '-100'), ('data', date), ('f7', str(nights)),
+        ('flt', '100411293179'), ('p', persons),
+    ]
+
+
+def show_result(name, programme, date, nights, persons):
+    print('\n' + '=' * 76)
+    print(name)
+    params = request_params(programme, date, nights, persons)
+    response = requests.get(BASE, params=params, headers=HEADERS, timeout=55)
+    print('HTTP:', response.status_code, '| bytes:', len(response.content))
+    print('URL:', response.url)
     response.raise_for_status()
-    response.encoding = response.apparent_encoding if response.encoding == 'ISO-8859-1' else response.encoding
-    return response.text, response.url
-
-
-def params_for(case, template=None, extras=None):
-    # Код p подтверждён только для двух взрослых и даты 15/20 ноября 2026.
-    day = int(case['start'][:2])
-    person = f'{day:03d}1019900'
-    params = [('action', 'price'), ('tid', '211'), ('flt', case['flt']),
-              ('flt2', case['flt2']), ('bfr', '1'), ('data', case['start']),
-              ('d2', case['end']), ('ho', '0'), ('ins', '0-50000-USD'),
-              ('p', f'{person}.{person}')]
-    if template:
-        params.append(('id_price', template))
-    for n in case['nights']:
-        params.append(('f7', str(n)))
-    if extras:
-        for key, value in extras.items():
-            params = [(k, v) for k, v in params if k != key]
-            params.append((key, value))
-    return params
-
-
-def discover(html):
-    # Диагностика: наличие id_price в HTML не доказывает, что программа доступна.
-    decoded = html.replace('&amp;', '&')
-    ids = set(re.findall(r'(?i)\bid_price\s*[=:]\s*["\']?(\d{8,18})', decoded))
-    ids.update(re.findall(r'(?i)\bid_price(?:%3[dD]|=)(\d{8,18})', decoded))
-    ids.update(re.findall(r'(?i)\btempl(?:=|%3[dD])(\d{8,18})', decoded))
-    return sorted(ids)
-
-
-def parse_offers(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    hotel = ''
-    offers = []
-    for tr in soup.select('tr'):
-        classes = tr.get('class') or []
-        if 'b-pr_t_hl' in classes:
-            link = tr.select_one('a')
-            hotel = (link or tr).get_text(' ', strip=True)[:130]
-            continue
-        night_cell = tr.select_one('td.c_dn')
-        price_cell = tr.select_one('td.c_pe')
-        if not night_cell or not price_cell:
-            continue
-        night_match = re.search(r'\b(\d{1,2})\b', night_cell.get_text(' ', strip=True))
-        price_node = price_cell.select_one('b.r')
-        if not night_match or not price_node:
-            continue
-        price_digits = re.sub(r'\D', '', price_node.get_text(' ', strip=True))
-        link = price_cell.select_one('a[href*="zaya"]') or tr.select_one('a[href*="zaya"]')
-        if not price_digits or not link:
-            continue
-        url = urljoin(BASE, link.get('href', ''))
-        query = parse_qs(urlparse(url).query)
-        flight_count = len(tr.select('td.c_cn li.i_ft'))
-        accommodation_count = len(tr.select('td.c_cn li.i_an'))
-        # В некоторых таблицах услуги выводятся в соседних строках;
-        # без явных маркеров пакет не считаем подтверждённым.
-        # Если заголовок отеля отсутствует, не приписываем название от предыдущей строки.
-        offers.append({'hotel': hotel or '[название не определено]', 'nights': int(night_match.group(1)),
-                       'price': int(price_digits), 'url': url,
-                       'date': (query.get('dt') or [''])[0],
-                       'link_nights': (query.get('kol') or [''])[0],
-                       'p': (query.get('p') or [''])[0],
-                       'templ': (query.get('templ') or [''])[0],
-                       'flights': flight_count, 'hotels': accommodation_count})
-    return offers
-
-
-def inspect(case, label, html):
-    offers = parse_offers(html)
-    start = datetime.strptime(case['start'], '%d.%m.%Y').date()
-    end = datetime.strptime(case['end'], '%d.%m.%Y').date()
-    dates = Counter(o['date'] for o in offers)
-    real_templates = Counter(o['templ'] for o in offers)
-    nights = Counter(o['nights'] for o in offers)
-    reasons = Counter()
+    try:
+        data = response.json()
+    except ValueError:
+        print('ОШИБКА: не JSON. Начало ответа:', response.text[:450])
+        return
+    if not isinstance(data, dict):
+        print('Неожиданный тип JSON:', type(data).__name__, str(data)[:400])
+        return
+    print('Ключи JSON:', list(data))
+    section = data.get('PRICE_SECTION')
+    if not isinstance(section, dict):
+        print('PRICE_SECTION отсутствует; начало:', json.dumps(data, ensure_ascii=False)[:650])
+        return
+    entries = section.get('entries', [])
+    if not isinstance(entries, list):
+        print('entries не список:', str(entries)[:300])
+        return
+    hotels = ((data.get('FILTER') or {}).get('HOTELS') or [])
+    hotel_names = {str(h.get('ID')): (h.get('TITLE') or '').strip() for h in hotels if isinstance(h, dict)}
+    print('Всего предложений:', len(entries), '| отелей в FILTER:', len(hotels))
+    print('Даты:', dict(Counter(str(e.get('tour_date', '')) for e in entries if isinstance(e, dict))))
+    print('Ночи:', dict(Counter(str(e.get('duration', '')) for e in entries if isinstance(e, dict))))
+    print('Авиакомпании:', Counter(str(e.get('aircompany', '')) for e in entries if isinstance(e, dict)).most_common(5))
+    print('ID программ в результатах:', dict(Counter(str(e.get('id_price', '')) for e in entries if isinstance(e, dict))))
+    print('next_page:', str(section.get('next_page', ''))[:400] or '(нет)')
     valid = []
-    for offer in offers:
-        try:
-            d = datetime.strptime(offer['date'], '%d.%m.%Y').date()
-        except ValueError:
-            reasons['нет даты в ссылке'] += 1
+    rejected = Counter()
+    for e in entries:
+        if not isinstance(e, dict):
+            rejected['не объект'] += 1
             continue
-        expected = f'{d.day:03d}1019900'
-        checks = {
-            'дата вне диапазона': not start <= d <= end,
-            'неподходящие ночи': offer['nights'] not in case['nights'],
-            'ночи в ссылке не совпадают': offer['link_nights'] != str(offer['nights']),
-            'состав туристов не совпадает': offer['p'] != f'{expected}.{expected}',
-            'нет подтверждения 2 перелётов': offer['flights'] < 2,
-            'нет подтверждения проживания': offer['hotels'] < 1,
-        }
-        for reason, failed in checks.items():
-            if failed:
-                reasons[reason] += 1
-        if not any(checks.values()):
-            valid.append(offer)
-    print(f'  [{label}] HTML={len(html)} | предложений={len(offers)} | строго подходящих={len(valid)}', flush=True)
-    print(f'    даты ссылок: {dict(dates.most_common(6))}; ночи: {dict(nights.most_common(8))}', flush=True)
-    print(f'    причины отклонения: {dict(reasons)}', flush=True)
-    print(f'    ФАКТИЧЕСКИЕ templ из ссылок: {dict(real_templates)}', flush=True)
-    # Одна и та же заявка может присутствовать в нескольких строках таблицы.
-    unique = list({o['url']: o for o in valid}.values())
-    print(f'    уникальных ссылок среди подходящих: {len(unique)}', flush=True)
-    for o in sorted(unique, key=lambda item: item['price'])[:3]:
-        print(f"    {o['hotel']} | {o['price']:,} ₽ | {o['date']} | {o['nights']} ночей", flush=True)
-        print('    ' + o['url'], flush=True)
-    return unique
+        if e.get('tour_date') != date or str(e.get('duration')) != str(nights):
+            rejected['другая дата/длительность'] += 1
+            continue
+        prices = e.get('prices') or []
+        if not isinstance(prices, list) or not prices:
+            rejected['нет цен'] += 1
+            continue
+        for price in prices:
+            if not isinstance(price, dict):
+                continue
+            rub = price.get('RUR')
+            if not str(rub or '').isdigit() or int(rub) <= 0:
+                rejected['нет цены в рублях'] += 1
+                continue
+            # Формат ссылки BG: href0 + href1 + &p=... + href2.
+            href0 = section.get('href0') or ''
+            href1 = e.get('href1') or ''
+            href2 = price.get('href2') or ''
+            if not href0.startswith('https://www.bgoperator.ru/zaya') or '&templ=' not in href1:
+                rejected['нет ссылки бронирования'] += 1
+                continue
+            url = href0 + href1 + '&p=' + persons + href2
+            actual_template = parse_qs(urlsplit(url).query).get('templ', [''])[0]
+            valid.append((int(rub), hotel_names.get(str(e.get('id_hotel')), ''), e.get('aircompany', ''), actual_template, url, price.get('ag', '')))
+    print('Подходящих ценовых вариантов:', len(valid), '| исключено:', dict(rejected))
+    print('Фактические templ:', dict(Counter(v[3] for v in valid)))
+    for rub, hotel, airline, templ, url, ages in sorted(valid)[:4]:
+        print(f'  {hotel or "[название не найдено]"} | {rub:,} ₽ | {airline} | возраст: {ages} | templ={templ}')
+        print('  Бронирование:', url[:500])
+    if valid and not any('13+' in str(v[5]) for v in valid):
+        print('ВНИМАНИЕ: возрастные группы в ответе требуют отдельной проверки.')
 
 
-def run_case(case):
-    print('\n' + '=' * 68, flush=True)
-    print(f"{case['name']} | {case['start']}–{case['end']} | ночи {case['nights']}", flush=True)
-    known = {item[1] for item in case['templates']}
-    actual_seen = set()
-    common_html, common_url = fetch(BASE, params_for(case))
-    print(f'Общая страница: HTTP 200 | HTML={len(common_html)} | {common_url[:160]}', flush=True)
-    discovered = discover(common_html)
-    print(f'Найдено упоминаний разных ID программ: {len(discovered)}', flush=True)
-    print(f'Первые ID: {discovered[:25]}', flush=True)
-    inspect(case, 'общая страница', common_html)
-    for label, template, extras in case['templates']:
-        html, url = fetch(urljoin(BASE, 'price.shtml'), params_for(case, template, extras))
-        print(f'  Запрос программы {template}: HTTP 200 | URL={url[:160]}', flush=True)
-        actual_seen.update(o['templ'] for o in inspect(case, label, html) if o['templ'])
-    additional = [p for p in discovered if p not in known][:4]
-    print(f'Дополнительные программы для проверки: {additional}', flush=True)
-    for template in additional:
+def main():
+    print('=== BG: ПРОВЕРКА JSON API xml=51 ПО РЕАЛЬНОМУ HAR ===')
+    print('Проверяем только Москву → Турцию, без bg_search.py и bot.py.')
+    for case in CASES:
         try:
-            html, _ = fetch(urljoin(BASE, 'price.shtml'), params_for(case, template))
-            found = inspect(case, f'автоматически найденная {template}', html)
-            actual = {o['templ'] for o in found if o['templ']}
-            print(f'    ID из HTML={template}; реальные шаблоны в ссылках={sorted(actual)}', flush=True)
-            if actual and template not in actual:
-                print('    ВНИМАНИЕ: найденный ID не является templ найденных туров; возможен общий/переадресующий шаблон.', flush=True)
+            show_result(*case)
         except Exception as exc:
-            print(f'  Программа {template}: {type(exc).__name__}: {exc}', flush=True)
-    if actual_seen:
-        print(f'Реальные шаблоны известных программ: {sorted(actual_seen)}', flush=True)
-    if not discovered:
-        print('В общей HTML-странице ID программ не обнаружены: для универсального поиска нужен другой источник программ.', flush=True)
+            print('ОШИБКА:', type(exc).__name__, str(exc))
+            traceback.print_exc()
+    print('\n=== КОНЕЦ ===')
 
 
 if __name__ == '__main__':
-    print('=== BG: САМОСТОЯТЕЛЬНАЯ ПРОВЕРКА ПРОГРАММ, БЕЗ bg_search.py ===', flush=True)
-    for case in CASES:
-        try:
-            run_case(case)
-        except Exception as exc:
-            print(f"ОШИБКА {case['name']}: {type(exc).__name__}: {exc}", flush=True)
-            traceback.print_exc()
-    print('\n=== ГОТОВО ===', flush=True)
+    main()
