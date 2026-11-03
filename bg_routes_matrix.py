@@ -1,114 +1,176 @@
 
-"""Самостоятельная проверка JSON API Библио-Глобуса и обнаружения программ.
-
-Запуск в GitHub Actions: python bg_routes_matrix.py
-Зависимости: requests (установлен в проекте). Не импортирует bg_search.py/bot.py.
-Только чтение публичных страниц BG. Render не нужен.
+"""BG: end-to-end discovery xml=11 -> package prices xml=51.
+Standalone diagnostic: python bg_routes_matrix.py. Requires requests.
+No imports from bot.py or bg_search.py. Does not modify any files.
 """
-import json
-import re
-import traceback
 from collections import Counter
-from html import unescape
+from datetime import datetime
 from urllib.parse import parse_qs, urljoin, urlsplit
-
+import traceback
 import requests
 
-SITE = 'https://www.bgoperator.ru/site'
-HOME = 'https://www.bgoperator.ru/'
-HEADERS = {
+BASE = 'https://www.bgoperator.ru/'
+API = urljoin(BASE, 'site')
+CASES = [
+    ('Москва → Турция', '100411293179', '100510000863', '20.11.2026', 7),
+    ('Екатеринбург → Таиланд', '100410000051', '100510000892', '15.11.2026', 11),
+    ('Екатеринбург → Таиланд', '100410000051', '100510000892', '15.11.2026', 13),
+    ('Казань → Египет', '100410000047', '100510345650', '15.11.2026', 6),
+    ('Казань → Египет', '100410000047', '100510345650', '15.11.2026', 9),
+]
+
+# Ограничение количества запросов на одно направление.
+MAX_PROGRAMS_PER_CASE = 8
+TIMEOUT = 40
+
+session = requests.Session()
+session.headers.update({
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
     'Accept': 'application/json, text/javascript, */*; q=0.01',
     'Accept-Language': 'ru-RU,ru;q=0.9',
-    'Referer': HOME,
-}
-
-# Рабочие программы подтверждены ранее HTML-проверкой, а не новым JSON API.
-# На Таиланде проверяем также Пхукет, который раньше отдавал неверную дату.
-CASES = [
-    {'title': 'Екатеринбург → Таиланд / Паттайя', 'from': '100410000051', 'to': '100510000892',
-     'program': '121163457355', 'date': '15.11.2026', 'nights': 11, 'persons': '0151019900.0151019900'},
-    {'title': 'Екатеринбург → Таиланд / Паттайя, 13 ночей', 'from': '100410000051', 'to': '100510000892',
-     'program': '121163457355', 'date': '15.11.2026', 'nights': 13, 'persons': '0151019900.0151019900'},
-    {'title': 'Екатеринбург → Таиланд / Пхукет', 'from': '100410000051', 'to': '100510000892',
-     'program': '121166921602', 'date': '15.11.2026', 'nights': 13, 'persons': '0151019900.0151019900'},
-    {'title': 'Казань → Египет', 'from': '100410000047', 'to': '100510345650',
-     'program': '121110211282', 'date': '15.11.2026', 'nights': 6, 'persons': '0151019900.0151019900'},
-    {'title': 'Казань → Египет, 9 ночей', 'from': '100410000047', 'to': '100510345650',
-     'program': '121110211282', 'date': '15.11.2026', 'nights': 9, 'persons': '0151019900.0151019900'},
-]
-
-session = requests.Session()
-session.headers.update(HEADERS)
+    'Referer': BASE,
+})
 
 
-def params(case, program=None):
-    return [
-        ('xml', '51'), ('action', 'price'), ('id_price', program or case['program']),
-        ('flt2', case['to']), ('f8', 'BB'), ('f8', 'HB'), ('f8', 'FB'),
-        ('f8', 'AI'), ('f8', 'AO'), ('entr', '-100'),
-        ('data', case['date']), ('f7', str(case['nights'])),
-        ('flt', case['from']), ('p', case['persons']),
+def get_json(parameters):
+    r = session.get(API, params=parameters, timeout=TIMEOUT)
+    print('  HTTP', r.status_code, '| bytes', len(r.content), '|', r.url[:250])
+    r.raise_for_status()
+    try:
+        return r.json()
+    except ValueError:
+        print('  ОШИБКА: ответ не JSON:', r.text[:250])
+        return {}
+
+
+def persons_code(date):
+    # Подтверждено только для этих двух дат и двух взрослых.
+    return {
+        '15.11.2026': '0151019900.0151019900',
+        '20.11.2026': '0201019900.0201019900',
+    }[date]
+
+
+def allowed_nights(raw):
+    return {int(x) for x in str(raw or '').split('/') if x.isdigit()}
+
+
+def discover(from_id, to_id, date, nights):
+    data = get_json([
+        ('action', 'files'),
+        ('flt', from_id),
+        ('flt2', to_id),
+        ('xml', '11'),
+    ])
+
+    rows = data.get('entries', [])
+    if not isinstance(rows, list):
+        print('  ОШИБКА: entries не список:', str(rows)[:150])
+        return []
+
+    print(
+        '  Строк расписания:', len(rows),
+        '| уникальных ID:',
+        len({
+            str(x.get('id_price'))
+            for x in rows
+            if isinstance(x, dict)
+        })
+    )
+
+    exact = [
+        x for x in rows
+        if isinstance(x, dict)
+        and x.get('date') == date
+        and nights in allowed_nights(x.get('duration'))
     ]
 
+    print('  Совпали дата и ночи:', len(exact))
 
-def fetch_json(case, program=None):
-    response = session.get(SITE, params=params(case, program), timeout=55)
-    print('HTTP:', response.status_code, '| bytes:', len(response.content))
-    print('URL:', response.url[:350])
-    response.raise_for_status()
-    try:
-        return response.json()
-    except ValueError:
-        print('НЕ JSON:', response.text[:350])
-        return None
+    if not exact:
+        dates = sorted({
+            str(x.get('date', ''))
+            for x in rows
+            if isinstance(x, dict) and x.get('date')
+        })
+        print('  Даты в расписании (первые 12):', dates[:12])
+        return []
+
+    # Одну программу запрашиваем только один раз.
+    unique = {}
+    for x in exact:
+        program = str(x.get('id_price', ''))
+        if program.isdigit():
+            unique.setdefault(program, x)
+
+    print('  Подходящие программы:', len(unique))
+
+    for program, row in unique.items():
+        print(
+            '   ', program,
+            '|', row.get('route'),
+            '| дата', row.get('date'),
+            '| ночи', row.get('duration')
+        )
+
+    return list(unique.items())
 
 
-def examine(case, data, label):
-    if not isinstance(data, dict):
-        print(label, '| ответ не объект JSON')
-        return
+def package_prices(from_id, to_id, date, nights, program):
+    p = [
+        ('xml', '51'),
+        ('action', 'price'),
+        ('id_price', program),
+        ('flt2', to_id),
+    ]
 
-    section = data.get('PRICE_SECTION')
-    if not isinstance(section, dict):
-        print(label, '| PRICE_SECTION отсутствует; ключи:', list(data))
-        print('Фрагмент:', json.dumps(data, ensure_ascii=False)[:450])
-        return
+    p.extend([
+        ('f8', v)
+        for v in ('BB', 'HB', 'FB', 'AI', 'AO')
+    ])
 
+    p.extend([
+        ('entr', '-100'),
+        ('data', date),
+        ('f7', str(nights)),
+        ('flt', from_id),
+        ('p', persons_code(date)),
+    ])
+
+    data = get_json(p)
+
+    if data.get('ERROR'):
+        print('  ОШИБКА BG:', data['ERROR'])
+        return []
+
+    section = data.get('PRICE_SECTION') or {}
     entries = section.get('entries') or []
-    if not isinstance(entries, list):
-        print(label, '| entries не список:', str(entries)[:200])
-        return
 
-    hotel_rows = (data.get('FILTER') or {}).get('HOTELS') or []
     hotels = {
-        str(h.get('ID')): str(h.get('TITLE') or '').strip()
-        for h in hotel_rows if isinstance(h, dict)
+        str(h.get('ID')): h.get('TITLE', '')
+        for h in (data.get('FILTER') or {}).get('HOTELS', [])
+        if isinstance(h, dict)
     }
 
-    print(label, '| предложений:', len(entries), '| отелей в фильтре:', len(hotels))
-    print('Даты:', dict(Counter(str(e.get('tour_date')) for e in entries if isinstance(e, dict))))
-    print('Ночи:', dict(Counter(str(e.get('duration')) for e in entries if isinstance(e, dict))))
-    print('Авиакомпании:', Counter(
-        str(e.get('aircompany')) for e in entries if isinstance(e, dict)
-    ).most_common(4))
-    print('ID программ:', dict(Counter(
-        str(e.get('id_price')) for e in entries if isinstance(e, dict)
-    )))
+    print(
+        '  Предложений API:', len(entries),
+        '| отелей в FILTER:', len(hotels),
+        '| next_page:', bool(section.get('next_page'))
+    )
 
-    next_page = section.get('next_page') or ''
-    print('next_page:', str(next_page)[:300] or '(нет)')
-
-    rejected = Counter()
     valid = []
+    rejects = Counter()
 
     for e in entries:
         if not isinstance(e, dict):
-            rejected['не объект'] += 1
+            rejects['не объект'] += 1
             continue
 
-        if str(e.get('tour_date')) != case['date'] or str(e.get('duration')) != str(case['nights']):
-            rejected['неверная дата/ночи'] += 1
+        if (
+            str(e.get('tour_date')) != date
+            or str(e.get('duration')) != str(nights)
+        ):
+            rejects['дата/ночи'] += 1
             continue
 
         for price in e.get('prices') or []:
@@ -116,13 +178,15 @@ def examine(case, data, label):
                 continue
 
             try:
-                rub = int(str(price.get('RUR', '')).replace(' ', ''))
-            except (TypeError, ValueError):
-                rejected['неверная цена'] += 1
+                rub = int(
+                    str(price.get('RUR', '')).replace(' ', '')
+                )
+            except (ValueError, TypeError):
+                rejects['цена'] += 1
                 continue
 
             if rub <= 0:
-                rejected['неверная цена'] += 1
+                rejects['цена'] += 1
                 continue
 
             href0 = str(section.get('href0') or '')
@@ -130,97 +194,131 @@ def examine(case, data, label):
             href2 = str(price.get('href2') or '')
 
             if '/zaya' not in href0 or 'templ=' not in href1:
-                rejected['нет ссылки бронирования'] += 1
+                rejects['ссылка'] += 1
                 continue
 
-            url = urljoin(HOME, href0) + href1 + '&p=' + case['persons'] + href2
-            q = parse_qs(urlsplit(url).query)
+            link = (
+                urljoin(BASE, href0)
+                + href1
+                + '&p='
+                + persons_code(date)
+                + href2
+            )
 
-            if q.get('dt', [''])[0] != case['date'] or q.get('kol', [''])[0] != str(case['nights']):
-                rejected['ссылка с неверной датой/ночами'] += 1
-                continue
+            q = parse_qs(urlsplit(link).query)
 
-            if q.get('p', [''])[0] != case['persons']:
-                rejected['состав туристов не совпал'] += 1
+            if (
+                q.get('dt', [''])[0] != date
+                or q.get('kol', [''])[0] != str(nights)
+                or q.get('p', [''])[0] != persons_code(date)
+                or q.get('templ', [''])[0] != program
+            ):
+                rejects['параметры бронирования'] += 1
                 continue
 
             valid.append((
                 rub,
-                hotels.get(str(e.get('id_hotel')), ''),
+                str(hotels.get(str(e.get('id_hotel')), '')),
                 str(e.get('aircompany') or ''),
-                q.get('templ', [''])[0],
-                url
+                link
             ))
 
-    print('Подходящих ценовых вариантов:', len(valid), '| отклонено:', dict(rejected))
-    print('Фактические templ:', dict(Counter(v[3] for v in valid)))
-    print('Уникальных ссылок:', len({v[4] for v in valid}))
+    unique = list({
+        v[3]: v
+        for v in valid
+    }.values())
 
-    for rub, hotel, airline, templ, url in sorted(valid)[:3]:
-        print('  ', hotel or '[нет названия]', '|', f'{rub:,} ₽', '|', airline, '| templ=', templ)
-        print('    ', url[:320])
+    print(
+        '  Подходящих вариантов:', len(valid),
+        '| уникальных ссылок:', len(unique),
+        '| отклонено:', dict(rejects)
+    )
 
+    for rub, hotel, airline, link in sorted(unique)[:2]:
+        print(
+            '   ',
+            hotel or '[без названия]',
+            '|',
+            f'{rub:,} ₽',
+            '|',
+            airline
+        )
+        print('    Бронирование:', link[:280])
 
-def discover(case):
-    """Проверяем наличие id_price в HTML общей страницы, без предположения о полноте списка."""
-    p = [
-        ('action', 'price'), ('tid', '211'), ('flt', case['from']),
-        ('flt2', case['to']), ('bfr', '1'), ('data', case['date']),
-        ('d2', case['date']), ('f7', str(case['nights'])),
-        ('ho', '0'), ('p', case['persons']),
-    ]
-
-    r = session.get(HOME, params=p, timeout=45)
-    r.raise_for_status()
-
-    html = unescape(r.text)
-    found = sorted(set(re.findall(
-        r'(?:id_price|idprice)\s*[=:]\s*["\']?(\d{9,15})', html, re.I
-    )))
-    found += [
-        v for v in re.findall(r'[?&]id_price=(\d{9,15})', html, re.I)
-        if v not in found
-    ]
-
-    print('Общая страница:', r.status_code, '| HTML bytes:', len(r.content))
-    print('Обнаруженные ID (не гарантирован полный список):', found[:25], '| всего:', len(found))
-    return found
+    return unique
 
 
 def main():
-    print('=== BG: JSON API xml=51 — ТАИЛАНД И ЕГИПЕТ ===')
-    print('Независимая диагностика; bg_search.py, bot.py, Render не используются.')
+    print('=== BG: АВТОМАТИЧЕСКИЙ ПОИСК xml=11 → xml=51 ===')
+    print('Самостоятельный тест без bg_search.py, bot.py и Render.')
 
-    discovery_cache = {}
-
-    for case in CASES:
+    for title, from_id, to_id, date, nights in CASES:
         print('\n' + '=' * 78)
-        print(case['title'], '|', case['date'], '|', case['nights'], 'ночей', '| 2 взрослых')
+        print(
+            title,
+            '|', date,
+            '|', nights, 'ночей',
+            '| 2 взрослых'
+        )
 
         try:
-            key = (case['from'], case['to'], case['date'])
+            programs = discover(
+                from_id, to_id, date, nights
+            )
 
-            if key not in discovery_cache:
-                discovery_cache[key] = discover(case)
+            if not programs:
+                print(
+                    'ИТОГО: нет подходящих программ '
+                    'в расписании xml=11'
+                )
+                continue
 
-            found = discovery_cache[key]
-            data = fetch_json(case)
+            all_offers = []
 
-            examine(case, data, 'ИЗВЕСТНАЯ ПРОГРАММА ' + case['program'])
+            for program, row in programs[:MAX_PROGRAMS_PER_CASE]:
+                print(
+                    '\nПРОГРАММА',
+                    program,
+                    '|',
+                    row.get('route', '')
+                )
 
-            # Один дополнительный ID с общей страницы:
-            # проверяем, даёт ли он новые туры.
-            extra = next((x for x in found if x != case['program']), None)
+                all_offers.extend(
+                    package_prices(
+                        from_id,
+                        to_id,
+                        date,
+                        nights,
+                        program
+                    )
+                )
 
-            if extra:
-                print('\nПРОВЕРКА АВТОМАТИЧЕСКИ НАЙДЕННОЙ ПРОГРАММЫ:', extra)
-                extra_data = fetch_json(case, extra)
-                examine(case, extra_data, 'АВТОМАТИЧЕСКИ НАЙДЕННАЯ ' + extra)
-            else:
-                print('Дополнительная программа для проверки не обнаружена.')
+            unique = {
+                offer[3]: offer
+                for offer in all_offers
+            }
+
+            print(
+                '\nИТОГО:',
+                len(unique),
+                'уникальных туров по',
+                min(len(programs), MAX_PROGRAMS_PER_CASE),
+                'программам'
+            )
+
+            if len(programs) > MAX_PROGRAMS_PER_CASE:
+                print(
+                    'ВНИМАНИЕ: лимит запросов; '
+                    'осталось программ:',
+                    len(programs) - MAX_PROGRAMS_PER_CASE
+                )
 
         except Exception as exc:
-            print('ОШИБКА:', type(exc).__name__, str(exc))
+            print(
+                'ОШИБКА:',
+                type(exc).__name__,
+                str(exc)
+            )
             traceback.print_exc()
 
     print('\n=== КОНЕЦ ===')
