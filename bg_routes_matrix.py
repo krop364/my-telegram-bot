@@ -328,14 +328,13 @@ def passenger_code(day, adults, child_ages):
     ]
 
     for age in child_ages:
-        # Candidate pattern, not independently verified
-        # for every possible age.
-        child_part = (
-            prefix
-            + "102"
-            + f"{age:02d}"
-            + "0"
-        )
+        if day == date(2026, 11, 20) and age == 8:
+            child_part = "0201020180"
+        else:
+            raise ValueError(
+                f"Код ребёнка {age} лет на дату "
+                f"{day.strftime('%d.%m.%Y')} пока не подтверждён"
+            )
 
         parts.append(child_part)
 
@@ -680,7 +679,26 @@ def search(
         "Строк расписания:",
         len(schedule),
     )
-
+    print("ПРИМЕРЫ СТРОК xml=11:")
+    for row in schedule[:5]:
+        print(json.dumps(row, ensure_ascii=False)[:1200])
+    
+    print("ДАТЫ В РАСПИСАНИИ:")
+    dates = sorted({
+        str(row.get("date") or "")
+        for row in schedule
+        if row.get("date")
+    })
+    print(dates[:40])
+    
+    print("СТРОК НА 20.11.2026:")
+    target = [
+        row for row in schedule
+        if str(row.get("date") or "") == "20.11.2026"
+    ]
+    print(len(target))
+    for row in target[:5]:
+        print(json.dumps(row, ensure_ascii=False)[:1200])
     programs = find_programs(
         schedule,
         requested_date,
