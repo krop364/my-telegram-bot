@@ -520,7 +520,33 @@ def hotel_names_from_filters(data):
 
     return hotels
 
+MEAL_PATTERN = re.compile(
+    r"(?<![A-Za-z])"
+    r"(ULTRA\s+ALL|UAI|AI|FB|HB|BB|AO)"
+    r"(?![A-Za-z])",
+    re.IGNORECASE,
+)
 
+
+def extract_meal(entry, price):
+    for value in (
+        entry.get("room"),
+        price.get("room"),
+        entry.get("meal"),
+        price.get("meal"),
+    ):
+        text = clean_text(value)
+        match = MEAL_PATTERN.search(text)
+
+        if match:
+            code = match.group(1).upper()
+
+            if code == "ULTRA ALL":
+                return "UAI"
+
+            return code
+
+    return ""
 def parse_offers(
     data, program_info, country_name, city_name,
     adults, child_ages, persons
@@ -584,11 +610,7 @@ def parse_offers(
                 or clean_text(entry.get("hotel_name"))
             )
 
-            meal = (
-                clean_text(price.get("meal"))
-                or clean_text(entry.get("meal"))
-                or clean_text(entry.get("f8"))
-            )
+            meal = extract_meal(entry, price)
 
             offers[url] = {
                 "operator": "Библио-Глобус",
@@ -840,9 +862,9 @@ def main():
     parser.add_argument("--country", default="Египет")
     parser.add_argument("--city", default="Казань")
     parser.add_argument("--date", default="2026-11-20")
-    parser.add_argument("--date-end", default=None)
+    parser.add_argument("--date-end", default="2026-11-27")
     parser.add_argument("--nights", type=int, default=5)
-    parser.add_argument("--nights-max", type=int, default=None)
+    parser.add_argument("--nights-max", type=int, default=10)
     parser.add_argument("--adults", type=int, default=2)
     parser.add_argument(
         "--children",
