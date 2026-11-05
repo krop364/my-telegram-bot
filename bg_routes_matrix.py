@@ -854,8 +854,8 @@ def main():
 
     parser.add_argument("--country", default="Египет")
     parser.add_argument("--city", default="Казань")
-    parser.add_argument("--date", default="2026-11-20")
-    parser.add_argument("--date-end", default="2026-11-27")
+    parser.add_argument("--date", default="2027-01-15")
+    parser.add_argument("--date-end", default="2027-01-22")
     parser.add_argument("--nights", type=int, default=5)
     parser.add_argument("--nights-max", type=int, default=10)
     parser.add_argument("--adults", type=int, default=2)
@@ -863,7 +863,7 @@ def main():
         "--children",
         type=int,
         nargs="*",
-        default=[8],
+        default=[5, 8],
     )
 
     args = parser.parse_args()
