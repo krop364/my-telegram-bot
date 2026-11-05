@@ -432,72 +432,65 @@ def build_price_params(
     return params
 
 
-def next_page_params(next_page, current_params):
-    """
-    Поддержка явных параметров следующей страницы.
 
-    Не придумываем параметр page, если BG его не сообщил.
-    """
+def next_page_params(next_page, current_params):
     if not next_page:
         return None
 
     if isinstance(next_page, dict):
-        if "url" in next_page:
-            return next_page_params(next_page["url"], current_params)
-
-        if "params" in next_page:
-            extra = next_page["params"]
-
-            if isinstance(extra, dict):
-                result = list(current_params)
-
-                for key, value in extra.items():
-                    result = [
-                        (k, v) for k, v in result if k != str(key)
-                    ]
-                    result.append((str(key), str(value)))
-
-                return result
-
-        return None
+        next_page = (
+            next_page.get("url")
+            or next_page.get("href")
+            or next_page.get("next_page")
+        )
 
     if not isinstance(next_page, str):
         return None
 
-    value = next_page.strip()
+    value = html.unescape(next_page.strip())
 
-    if not value:
+    # BG возвращает HTML-атрибут href='...'
+    match = re.search(
+        r"""href\s*=\s*['"]([^'"]+)['"]""",
+        value,
+        re.IGNORECASE,
+    )
+
+    if match:
+        value = match.group(1)
+
+    # Получаем параметры ссылки следующей страницы.
+    parsed = urlsplit(urljoin(API, value))
+    query = parse_qs(parsed.query)
+
+    mp = query.get("mp", [None])[0]
+
+    if not mp:
         return None
 
-    if value.startswith(("http://", "https://", "?", "&")):
-        parsed = urlsplit(
-            urljoin(API, value.lstrip("&"))
-        )
+    # Проверяем, что продолжение относится
+    # к той же программе и тому же составу.
+    original = dict(current_params)
 
-        if parsed.hostname not in (
-            "www.bgoperator.ru", "bgoperator.ru"
-        ):
-            return None
+    for key in ("id_price", "p", "data", "f7"):
+        expected = original.get(key)
+        received = query.get(key, [None])[0]
 
-        if parsed.path != "/site":
-            return None
+        if received is not None and received != expected:
+            raise ValueError(
+                f"Пагинация BG: изменился параметр {key}"
+            )
 
-        extra = parse_qsl(parsed.query, keep_blank_values=True)
+    # Сохраняем все параметры поиска.
+    result = [
+        (key, val)
+        for key, val in current_params
+        if key != "mp"
+    ]
 
-        if not extra:
-            return None
+    result.append(("mp", mp))
 
-        keys = {k for k, _ in extra}
-
-        if {"xml", "action", "id_price"}.issubset(keys):
-            return extra
-
-        result = [(k, v) for k, v in current_params if k not in keys]
-        result.extend(extra)
-
-        return result
-
-    return None
+    return result
 
 
 def hotel_names_from_filters(data):
