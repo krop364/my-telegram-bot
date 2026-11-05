@@ -1,3 +1,4 @@
+
 name: BG Auto Search Test
 
 on:
@@ -6,11 +7,58 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install requests beautifulsoup4
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
       - name: Test BG diagnostics
         run: python bg_routes_matrix.py
+
+      - name: Test bg_search.py
+        run: |
+          python - <<'PY'
+          from bg_search import search_bg_tours
+
+          offers = search_bg_tours(
+              departure_city="Казань",
+              country="Египет",
+              departure_date="2027-01-15",
+              departure_date_end="2027-01-22",
+              nights=5,
+              nights_max=10,
+              adults=2,
+              children=2,
+              child_ages=[5, 8],
+              limit=5,
+          )
+
+          print("=== BG SEARCH MODULE TEST ===")
+          print("Предложений:", len(offers))
+
+          assert offers, "BG не вернул ни одного тура"
+
+          for i, offer in enumerate(offers, 1):
+              print(f"\n{i}. {offer.get('hotel')}")
+              print("Дата:", offer.get("date"))
+              print("Ночей:", offer.get("nights"))
+              print("Питание:", offer.get("meal"))
+              print("Цена:", offer.get("price_rub"))
+              print("Ссылка:", offer.get("source"))
+
+              assert offer.get("price_rub", 0) > 0
+              assert offer.get("meal")
+              assert offer.get("source", "").startswith(
+                  "https://www.bgoperator.ru/zaya"
+              )
+              assert offer.get("children") == 2
+              assert offer.get("child_ages") == [5, 8]
+
+          print("\nBG SEARCH MODULE: OK")
+          PY
