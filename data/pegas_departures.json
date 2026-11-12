@@ -1,0 +1,1337 @@
+[
+  {
+    "id": 542,
+    "name": "Абакан",
+    "name_en": "Abakan",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 18653864,
+    "name": "Актау",
+    "name_en": "Aktau",
+    "destination_country_ids": [
+      72,
+      73,
+      156,
+      164,
+      1071,
+      4207037
+    ]
+  },
+  {
+    "id": 549,
+    "name": "Актобе",
+    "name_en": "Aktobe",
+    "destination_country_ids": [
+      72,
+      73,
+      164
+    ]
+  },
+  {
+    "id": 553,
+    "name": "Алматы",
+    "name_en": "Almaty",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      162,
+      164,
+      1071,
+      6866,
+      3818574,
+      122410934
+    ]
+  },
+  {
+    "id": 390,
+    "name": "Архангельск",
+    "name_en": "Arkhangelsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 5453829,
+    "name": "Астана",
+    "name_en": "Astana",
+    "destination_country_ids": [
+      72,
+      73,
+      156,
+      162,
+      164,
+      533,
+      1071,
+      6866,
+      3818574,
+      4207037,
+      122410934
+    ]
+  },
+  {
+    "id": 491,
+    "name": "Астрахань",
+    "name_en": "Astrakhan",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179,
+      1071,
+      5647739
+    ]
+  },
+  {
+    "id": 5453836,
+    "name": "Атырау",
+    "name_en": "Atyrau",
+    "destination_country_ids": [
+      72,
+      73,
+      156,
+      164,
+      1071
+    ]
+  },
+  {
+    "id": 1073,
+    "name": "Баку",
+    "name_en": "Baku",
+    "destination_country_ids": [
+      156,
+      164
+    ]
+  },
+  {
+    "id": 391,
+    "name": "Барнаул",
+    "name_en": "Barnaul",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 579,
+    "name": "Белоярский",
+    "name_en": "Beloyarsky",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 8265834,
+    "name": "Бишкек",
+    "name_en": "Bishkek",
+    "destination_country_ids": [
+      73,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 588,
+    "name": "Благовещенск",
+    "name_en": "Blagoveshchensk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156
+    ]
+  },
+  {
+    "id": 596,
+    "name": "Братск",
+    "name_en": "Bratsk",
+    "destination_country_ids": [
+      72,
+      133,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 218076334,
+    "name": "Бухара",
+    "name_en": "Bukhara",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 506,
+    "name": "Владивосток",
+    "name_en": "Vladivostok",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      160,
+      164,
+      2481427
+    ]
+  },
+  {
+    "id": 616,
+    "name": "Владикавказ",
+    "name_en": "Vladikavkaz",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      162,
+      164
+    ]
+  },
+  {
+    "id": 394,
+    "name": "Волгоград",
+    "name_en": "Volgograd",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      162,
+      164
+    ]
+  },
+  {
+    "id": 645,
+    "name": "Геленджик",
+    "name_en": "Gelendzhik",
+    "destination_country_ids": [
+      72,
+      133,
+      164
+    ]
+  },
+  {
+    "id": 651,
+    "name": "Горно-Алтайск",
+    "name_en": "Gorno-Altaysk",
+    "destination_country_ids": [
+      72,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 654,
+    "name": "Грозный",
+    "name_en": "Grozny",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      162,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 372028310,
+    "name": "Душанбе",
+    "name_en": "Dushanbe",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 395,
+    "name": "Екатеринбург",
+    "name_en": "Ekaterinburg",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      159,
+      160,
+      162,
+      164,
+      179,
+      533,
+      1071,
+      2481427,
+      2615643,
+      3818574,
+      4207037,
+      5647739,
+      8265653,
+      122410934
+    ]
+  },
+  {
+    "id": 4207042,
+    "name": "Ереван",
+    "name_en": "Yerevan",
+    "destination_country_ids": [
+      72,
+      156,
+      159,
+      162,
+      2481427,
+      122410934
+    ]
+  },
+  {
+    "id": 613,
+    "name": "Иваново",
+    "name_en": "Ivanovo",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 701,
+    "name": "Ижевск",
+    "name_en": "Izhevsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      5647739
+    ]
+  },
+  {
+    "id": 396,
+    "name": "Иркутск",
+    "name_en": "Irkutsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      159,
+      160,
+      164,
+      179,
+      2481427,
+      122410934
+    ]
+  },
+  {
+    "id": 397,
+    "name": "Казань",
+    "name_en": "Kazan",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      160,
+      162,
+      164,
+      533,
+      1071,
+      2481427,
+      3818574,
+      4207037,
+      5647739,
+      8265653,
+      122410934
+    ]
+  },
+  {
+    "id": 398,
+    "name": "Калининград",
+    "name_en": "Kaliningrad",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      533
+    ]
+  },
+  {
+    "id": 5457926,
+    "name": "Караганда",
+    "name_en": "Karaganda",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 399,
+    "name": "Кемерово",
+    "name_en": "Kemerovo",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 640,
+    "name": "Киров",
+    "name_en": "Kirov",
+    "destination_country_ids": [
+      72,
+      133,
+      5647739
+    ]
+  },
+  {
+    "id": 730,
+    "name": "Кировск",
+    "name_en": "Kirovsk",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 736,
+    "name": "Когалым",
+    "name_en": "Kogalym",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 400,
+    "name": "Краснодар",
+    "name_en": "Krasnodar",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      162,
+      179,
+      3818574,
+      4207037,
+      122410934
+    ]
+  },
+  {
+    "id": 401,
+    "name": "Красноярск",
+    "name_en": "Krasnoyarsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      159,
+      160,
+      164,
+      179,
+      2481427,
+      2615643,
+      4207037,
+      5647739
+    ]
+  },
+  {
+    "id": 776,
+    "name": "Курган",
+    "name_en": "Kurgan",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      179
+    ]
+  },
+  {
+    "id": 809,
+    "name": "Магадан",
+    "name_en": "Magadan",
+    "destination_country_ids": [
+      133,
+      156
+    ]
+  },
+  {
+    "id": 470492594,
+    "name": "Магас",
+    "name_en": "Magas",
+    "destination_country_ids": [
+      72,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 402,
+    "name": "Магнитогорск",
+    "name_en": "Magnitogorsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 822,
+    "name": "Махачкала",
+    "name_en": "Makhachkala",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      162,
+      164,
+      5647739
+    ]
+  },
+  {
+    "id": 403,
+    "name": "Минеральные Воды",
+    "name_en": "Mineralnye Vody",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      162,
+      164,
+      179,
+      3818574,
+      4207037,
+      5647739,
+      122410934
+    ]
+  },
+  {
+    "id": 535,
+    "name": "Минск",
+    "name_en": "Minsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      160,
+      162,
+      164,
+      179,
+      1071,
+      3818574,
+      4207037,
+      122410934
+    ]
+  },
+  {
+    "id": 76,
+    "name": "Москва",
+    "name_en": "Moscow",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      159,
+      160,
+      162,
+      164,
+      179,
+      533,
+      1071,
+      2481427,
+      2615643,
+      3818574,
+      4207037,
+      5647739,
+      8265653,
+      122410934
+    ]
+  },
+  {
+    "id": 510,
+    "name": "Мурманск",
+    "name_en": "Murmansk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      533
+    ]
+  },
+  {
+    "id": 5646093,
+    "name": "Надым",
+    "name_en": "Nadym",
+    "destination_country_ids": [
+      72,
+      5647739
+    ]
+  },
+  {
+    "id": 860,
+    "name": "Нальчик",
+    "name_en": "Nalchik",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 284861006,
+    "name": "Наманган",
+    "name_en": "Namangan",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 848,
+    "name": "Нарьян-Мар",
+    "name_en": "Naryan-Mar",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 867,
+    "name": "Нерюнгри",
+    "name_en": "Neryungri",
+    "destination_country_ids": [
+      156,
+      164
+    ]
+  },
+  {
+    "id": 512,
+    "name": "Нижневартовск",
+    "name_en": "Nizhnevartovsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      4207037,
+      5647739,
+      122410934
+    ]
+  },
+  {
+    "id": 404,
+    "name": "Нижнекамск",
+    "name_en": "Nizhnekamsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      1071
+    ]
+  },
+  {
+    "id": 405,
+    "name": "Нижний Новгород",
+    "name_en": "Nizhny Novgorod",
+    "destination_country_ids": [
+      72,
+      133,
+      156,
+      159,
+      164,
+      179,
+      4207037,
+      5647739
+    ]
+  },
+  {
+    "id": 879,
+    "name": "Новокузнецк",
+    "name_en": "Novokuznetsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 406,
+    "name": "Новосибирск",
+    "name_en": "Novosibirsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      159,
+      160,
+      162,
+      164,
+      179,
+      1071,
+      2481427,
+      2615643,
+      3818574,
+      4207037,
+      5647739,
+      8265653,
+      122410934
+    ]
+  },
+  {
+    "id": 890,
+    "name": "Новый Уренгой",
+    "name_en": "Novy Urengoy",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      4207037,
+      5647739
+    ]
+  },
+  {
+    "id": 892,
+    "name": "Норильск",
+    "name_en": "Norilsk",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 893,
+    "name": "Ноябрьск",
+    "name_en": "Noyabrsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      4207037,
+      5647739
+    ]
+  },
+  {
+    "id": 895,
+    "name": "Нягань",
+    "name_en": "Nyagan",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 407,
+    "name": "Омск",
+    "name_en": "Omsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      4207037
+    ]
+  },
+  {
+    "id": 408,
+    "name": "Оренбург",
+    "name_en": "Orenburg",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      1071
+    ]
+  },
+  {
+    "id": 515,
+    "name": "Орск",
+    "name_en": "Orsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 158506100,
+    "name": "Ош",
+    "name_en": "Osh",
+    "destination_country_ids": [
+      156
+    ]
+  },
+  {
+    "id": 770,
+    "name": "Пенза",
+    "name_en": "Penza",
+    "destination_country_ids": [
+      72,
+      133,
+      5647739
+    ]
+  },
+  {
+    "id": 409,
+    "name": "Пермь",
+    "name_en": "Perm",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      533,
+      1071,
+      4207037,
+      5647739,
+      122410934
+    ]
+  },
+  {
+    "id": 910,
+    "name": "Петрозаводск",
+    "name_en": "Petrozavodsk",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 500,
+    "name": "Петропавловск-Камчатский",
+    "name_en": "Petropavlovsk-Kamchatsky",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 602,
+    "name": "Псков",
+    "name_en": "Pskov",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 845,
+    "name": "Салехард",
+    "name_en": "Salekhard",
+    "destination_country_ids": [
+      72,
+      133,
+      156,
+      5647739
+    ]
+  },
+  {
+    "id": 119,
+    "name": "Самара",
+    "name_en": "Samara",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      162,
+      164,
+      179,
+      533,
+      3818574,
+      4207037,
+      5647739,
+      122410934
+    ]
+  },
+  {
+    "id": 218076442,
+    "name": "Самарканд",
+    "name_en": "Samarkand",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 411,
+    "name": "Санкт-Петербург",
+    "name_en": "Saint Petersburg",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      160,
+      162,
+      164,
+      533,
+      1071,
+      2481427,
+      2615643,
+      3818574,
+      4207037,
+      5647739,
+      122410934
+    ]
+  },
+  {
+    "id": 942,
+    "name": "Саранск",
+    "name_en": "Saransk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 522,
+    "name": "Саратов",
+    "name_en": "Saratov",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      3818574,
+      4207037,
+      5647739
+    ]
+  },
+  {
+    "id": 5645213,
+    "name": "Советский",
+    "name_en": "Sovetsky",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 982,
+    "name": "Сочи",
+    "name_en": "Sochi",
+    "destination_country_ids": [
+      72,
+      73,
+      156,
+      159,
+      162,
+      164,
+      179,
+      533,
+      3818574,
+      4207037,
+      122410934
+    ]
+  },
+  {
+    "id": 516,
+    "name": "Ставрополь",
+    "name_en": "Stavropol",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 412,
+    "name": "Сургут",
+    "name_en": "Surgut",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      162,
+      164,
+      179,
+      1071,
+      4207037,
+      5647739,
+      8265653,
+      122410934
+    ]
+  },
+  {
+    "id": 519,
+    "name": "Сыктывкар",
+    "name_en": "Syktyvkar",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      179
+    ]
+  },
+  {
+    "id": 130632863,
+    "name": "Ташкент",
+    "name_en": "Tashkent",
+    "destination_country_ids": [
+      72,
+      73,
+      156,
+      158,
+      162,
+      164,
+      1071,
+      2481427,
+      4207037
+    ]
+  },
+  {
+    "id": 3818580,
+    "name": "Тбилиси",
+    "name_en": "Tbilisi",
+    "destination_country_ids": [
+      133,
+      158,
+      162,
+      164,
+      179,
+      2481427
+    ]
+  },
+  {
+    "id": 1002,
+    "name": "Тобольск",
+    "name_en": "Tobolsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      164
+    ]
+  },
+  {
+    "id": 960,
+    "name": "Томск",
+    "name_en": "Tomsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 413,
+    "name": "Тюмень",
+    "name_en": "Tyumen",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      162,
+      164,
+      1071,
+      2615643,
+      4207037,
+      5647739,
+      8265653,
+      122410934
+    ]
+  },
+  {
+    "id": 957,
+    "name": "Улан-Удэ",
+    "name_en": "Ulan-Ude",
+    "destination_country_ids": [
+      72,
+      73,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 525,
+    "name": "Ульяновск",
+    "name_en": "Ulyanovsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      5647739
+    ]
+  },
+  {
+    "id": 1019,
+    "name": "Уральск",
+    "name_en": "Uralsk",
+    "destination_country_ids": [
+      73,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 284869048,
+    "name": "Ургенч",
+    "name_en": "Urgench",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 1021,
+    "name": "Усинск",
+    "name_en": "Usinsk",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 1023,
+    "name": "Усть-Каменогорск",
+    "name_en": "Ust-Kamenogorsk",
+    "destination_country_ids": [
+      73,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 414,
+    "name": "Уфа",
+    "name_en": "Ufa",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      160,
+      162,
+      164,
+      533,
+      2481427,
+      2615643,
+      3818574,
+      4207037,
+      5647739,
+      122410934
+    ]
+  },
+  {
+    "id": 415,
+    "name": "Хабаровск",
+    "name_en": "Khabarovsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      158,
+      159,
+      160,
+      164,
+      179,
+      2481427
+    ]
+  },
+  {
+    "id": 416,
+    "name": "Ханты-Мансийск",
+    "name_en": "Khanty-Mansiysk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      4207037
+    ]
+  },
+  {
+    "id": 184272929,
+    "name": "Худжанд",
+    "name_en": "Khujand",
+    "destination_country_ids": [
+      72
+    ]
+  },
+  {
+    "id": 494,
+    "name": "Чебоксары",
+    "name_en": "Cheboksary",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      179,
+      1071
+    ]
+  },
+  {
+    "id": 417,
+    "name": "Челябинск",
+    "name_en": "Chelyabinsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      159,
+      164,
+      179,
+      5647739
+    ]
+  },
+  {
+    "id": 1036,
+    "name": "Череповец",
+    "name_en": "Cherepovets",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  },
+  {
+    "id": 1043,
+    "name": "Чита",
+    "name_en": "Chita",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      2481427
+    ]
+  },
+  {
+    "id": 10465351,
+    "name": "Шымкент",
+    "name_en": "Shymkent",
+    "destination_country_ids": [
+      73,
+      156,
+      164
+    ]
+  },
+  {
+    "id": 503,
+    "name": "Южно-Сахалинск",
+    "name_en": "Yuzhno-Sakhalinsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156
+    ]
+  },
+  {
+    "id": 528,
+    "name": "Якутск",
+    "name_en": "Yakutsk",
+    "destination_country_ids": [
+      72,
+      73,
+      133,
+      156,
+      164,
+      179
+    ]
+  },
+  {
+    "id": 912,
+    "name": "Ярославль",
+    "name_en": "Yaroslavl",
+    "destination_country_ids": [
+      72,
+      133
+    ]
+  }
+]
