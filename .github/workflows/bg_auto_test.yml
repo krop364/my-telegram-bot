@@ -18,8 +18,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: Test BG diagnostics
-        run: python bg_routes_matrix.py
+      - name: Test PEGAS live search
+        run: python pegas_test.py
 
       - name: Test bg_search.py
         run: |
