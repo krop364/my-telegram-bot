@@ -44,6 +44,11 @@ def _post(session, endpoint, payload, timeout=45):
                             headers={'Accept': 'application/json',
                                      'X-Requested-With': 'XMLHttpRequest',
                                      'Origin': BASE, 'Referer': BASE + '/'})
+    if response.status_code == 403:
+        print("PEGAS HTTP 403")
+        print("Content-Type:", response.headers.get("Content-Type"))
+        print("Server:", response.headers.get("Server"))
+        print("Response preview:", response.text[:500])
     response.raise_for_status()
     body = response.json()
     if not isinstance(body, dict) or body.get('ok') is not True or not isinstance(body.get('data'), dict):
